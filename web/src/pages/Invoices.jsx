@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Receipt, FileDown } from 'lucide-react';
-import { get } from '../lib/api.js';
+import { Receipt, FileDown, Trash2 } from 'lucide-react';
+import { get, del } from '../lib/api.js';
 import { Badge, Card, Chips, Empty, PageHeader, SearchBox, matches, useFetch, useSort } from '../lib/ui.jsx';
 import { money, dateFr } from '../lib/format.js';
 
@@ -12,7 +12,11 @@ export const KIND_INV = { acompte: 'Acompte', situation: 'Situation', solde: 'So
 export const InvBadge = ({ i }) => { const k = i.late ? 'retard' : i.status; return <Badge className={INV[k][1]}>{INV[k][0]}</Badge>; };
 
 export default function Invoices() {
-  const { data } = useFetch(() => get('/invoices'));
+  const { data, reload } = useFetch(() => get('/invoices'));
+  const remove = async (i) => {
+    if (!window.confirm(`Supprimer définitivement la facture ${i.number || 'brouillon'} (${money(i.total_ttc)}) ?\n\nElle disparaît du logiciel avec ses avoirs et ses indemnités kilométriques ; le stock est remis en place. Cette action est irréversible.`)) return;
+    try { await del(`/invoices/${i.id}`); reload(); } catch (e) { window.alert(e.message || 'Suppression impossible.'); }
+  };
   const [q, setQ] = useState(''); const [f, setF] = useState('all');
   const key = (i) => (i.late ? 'retard' : i.status);
   const filtered = useMemo(() => (data || []).filter((i) => (f === 'all' || (f === 'avoir' ? i.kind === 'avoir' : f === 'retard' ? i.late : i.status === f)) && matches(i, q, (x) => `${x.number || 'brouillon'} ${x.project_title} ${x.contact_name} ${x.contact_company} ${x.title} ${KIND_INV[x.kind]} ${(x.quotes || []).map((r) => r.number).join(' ')}`)), [data, q, f]);
@@ -40,7 +44,7 @@ export default function Invoices() {
                   <td><Link className="hover:text-accent" to={`/interventions/${i.project_id}`}>{i.project_title}</Link><div className="text-[12px] text-stone-400">{i.contact_company || i.contact_name}</div>{i.quotes?.length > 0 && <div className="text-[12px] text-stone-400">Devis {i.quotes.map((r) => r.number).join(', ')}</div>}</td>
                   <td>{KIND_INV[i.kind]}</td><td className={i.late ? 'text-rose-600 font-medium' : ''}>{dateFr(i.due_at)}</td>
                   <td className="text-right num font-medium">{money(i.total_ttc)}</td><td><InvBadge i={i} /></td>
-                  <td className="pr-4"><a href={`/api/invoices/${i.id}/pdf`} target="_blank" rel="noreferrer" className="text-stone-400 hover:text-accent"><FileDown size={16} /></a></td>
+                  <td className="pr-4"><a href={`/api/invoices/${i.id}/pdf`} target="_blank" rel="noreferrer" className="text-stone-400 hover:text-accent"><FileDown size={16} /></a>{!String(i.number || '').startsWith('TIIME-') && i.kind !== 'avoir' && <button title="Supprimer" className="ml-3 text-stone-300 hover:text-rose-600" onClick={() => remove(i)}><Trash2 size={15} /></button>}</td>
                 </tr>))}</tbody>
             </table>)}
         </Card>

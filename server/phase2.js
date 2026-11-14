@@ -8,7 +8,7 @@ import { renderInvoicePdf, renderPvPdf, renderRecapPdf } from './pdf2.js';
 import { expenseTotals } from './expenses.js';
 import { payLine } from './payments.js';
 import { buildCreditNote, invoiceQuotes, quoteRefsLabel, buildInvoice, buildDirectInvoice, loadInvoice, nextInvoiceNumber, signedQuotes, quoteCalc, vatFor } from './billing.js';
-import { consumeForInvoice, returnForCredit } from './stock.js';
+import { consumeForInvoice, returnForCredit, applyMove } from './stock.js';
 import { ensureTrip } from './ik.js';
 import { startSignature, verifyAndSign, getSignature } from './signature.js';
 import { sendMail } from './mail.js';
@@ -369,9 +369,23 @@ export function mountPhase2(app, { loadQuote, log, setStage, token, APP_URL, upl
     db.prepare("UPDATE invoices SET status='payee', paid_at=?, payment_method=? WHERE id=?").run(req.body.date || new Date().toISOString().slice(0, 10), method, inv.id);
     const p = projectOf(inv.project_id); log('devis', `Facture ${inv.number} payée (${eur(inv.total_ttc)})${method ? ' — ' + { especes: 'espèces', cb: 'carte bancaire', cheque: 'chèque', virement: 'virement', autre: 'autre mode' }[method] : ''}`, { contact_id: p.contact_id, project_id: p.id }); res.json({ ok: true });
   });
+  // Suppression totale d'une facture créée dans le logiciel (et de ses avoirs) : lignes, trajet IK, mouvements de stock remis en place.
+  // Les factures reprises de Tiime (TIIME-…) restent protégées : ce sont des archives.
   app.delete('/api/invoices/:id', (req, res) => {
-    const inv = db.prepare('SELECT * FROM invoices WHERE id=?').get(req.params.id); if (inv.status !== 'brouillon') return fail(res, 400, 'Une facture émise ne se supprime pas (numérotation continue).');
-    db.prepare('DELETE FROM invoices WHERE id=?').run(inv.id); res.json({ ok: true });
+    const inv = db.prepare('SELECT * FROM invoices WHERE id=?').get(req.params.id); if (!inv) return fail(res, 404, 'Facture introuvable.');
+    if (String(inv.number || '').startsWith('TIIME-')) return fail(res, 400, 'Cette facture vient de Tiime : elle reste en archive dans le logiciel.');
+    if (inv.kind === 'avoir' && inv.credit_of) return fail(res, 400, 'Supprimez la facture d’origine : ses avoirs partent avec elle.');
+    const ids = [inv.id, ...db.prepare('SELECT id FROM invoices WHERE credit_of=?').all(inv.id).map((r) => r.id)];
+    db.transaction(() => {
+      for (const id of ids) {
+        for (const m of db.prepare("SELECT * FROM stock_moves WHERE ref_type='invoice' AND ref_id=?").all(id)) {
+          applyMove({ item_id: m.item_id, kind: m.kind === 'sortie' ? 'retour' : 'sortie', qty: Math.abs(m.qty), ref_type: 'invoice_del', ref_id: id, note: `Suppression de la facture ${inv.number || 'brouillon'}` });
+        }
+      }
+      for (const id of ids.slice().reverse()) db.prepare('DELETE FROM invoices WHERE id=?').run(id);
+    })();
+    const p = projectOf(inv.project_id); if (p) log('devis', `Facture ${inv.number || 'brouillon'} supprimée`, { contact_id: p.contact_id, project_id: p.id });
+    res.json({ ok: true, deleted: ids.length });
   });
   app.get('/api/invoices/:id/pdf', (req, res) => { const inv = loadInvoice(req.params.id); if (!inv) return res.sendStatus(404); pdfHeaders(res, inv.number || `facture-brouillon-${inv.id}`); renderInvoicePdf(inv, res); });
   app.get('/api/invoices/:id/facturx.xml', (req, res) => { const inv = loadInvoice(req.params.id); if (!inv?.number) return res.status(404).json({ error: 'Facture non émise.' }); res.type('application/xml').attachment(`${inv.number}-factur-x.xml`).send(buildFacturX(inv, getSettings())); });

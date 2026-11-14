@@ -142,7 +142,8 @@ export function loadInvoice(id) {
 }
 
 export function nextInvoiceNumber(kind) {
-  const year = new Date().getFullYear(); const P = kind === 'avoir' ? 'AV' : 'FAC';
+  // Numérotation propre au logiciel (SAM-2026-0001 ; avoirs SAM-AV-2026-0001), distincte de celle de Tiime (TIIME-…).
+  const year = new Date().getFullYear(); const P = kind === 'avoir' ? 'SAM-AV' : 'SAM';
   const last = db.prepare("SELECT number FROM invoices WHERE number LIKE ? ORDER BY number DESC LIMIT 1").get(`${P}-${year}-%`);
-  return `${P}-${year}-${String(last ? Number(last.number.split('-')[2]) + 1 : 1).padStart(4, '0')}`;
+  return `${P}-${year}-${String(last ? Number(last.number.split('-').pop()) + 1 : 1).padStart(4, '0')}`;
 }
