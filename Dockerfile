@@ -15,4 +15,4 @@ COPY server server
 COPY --from=build /app/web/dist web/dist
 VOLUME /data
 EXPOSE 3001
-CMD ["node", "server/index.js"]
+CMD ["sh", "-c", "node server/seed.js; node server/index.js"]

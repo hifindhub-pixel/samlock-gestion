@@ -1,0 +1,16 @@
+# Hébergement Render : chaque mise à jour poussée sur GitHub est déployée automatiquement.
+services:
+  - type: web
+    name: samlock-gestion
+    runtime: docker
+    plan: starter            # disque persistant requis (la base SQLite y est conservée)
+    region: frankfurt
+    autoDeploy: true
+    healthCheckPath: /
+    disk:
+      name: samlock-data
+      mountPath: /data
+      sizeGB: 2
+    envVars:
+      - key: APP_PASSWORD
+        sync: false          # à saisir une fois à la création : mot de passe de connexion
