@@ -1,0 +1,119 @@
+@import "tailwindcss";
+@import "@fontsource-variable/nunito";
+@import "@fontsource/archivo-black";
+
+@theme {
+  --font-sans: "Nunito Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Archivo Black", ui-sans-serif, system-ui, sans-serif;
+  /* Charte SAMLOCK : orange #FF6D1A · encre #1f1f1f · crème #FFF3EA */
+  --color-accent: #FF6D1A;
+  --color-accent-soft: #FF6D1A22;
+  --color-surface: #faf8f6;
+  --color-line: #e8e3de;
+  --color-orange-800: #E5560A;
+}
+
+html, body, #root { height: 100%; }
+@supports (height: 100dvh) { html, body, #root { height: 100dvh; } }
+body { overflow-x: hidden; }
+body { background: var(--color-surface); color: #1f1f1f; font-size: 13.5px; -webkit-font-smoothing: antialiased; }
+.num { font-variant-numeric: tabular-nums; }
+input, select, textarea { font: inherit; }
+::selection { background: #ffd9bf; }
+
+/* champs de tableau : édition directe, sans bordure tant qu'on ne survole pas */
+.cell { width: 100%; background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 5px 7px; outline: none; transition: border-color .12s, background .12s; }
+.cell:hover { background: #f5f5f4; }
+.cell:focus { background: #fff; border-color: var(--color-accent); box-shadow: 0 0 0 3px #ff6d1a33; }
+.cell-r { text-align: right; }
+textarea.cell { resize: none; }
+
+.scroll-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+.scroll-thin::-webkit-scrollbar-thumb { background: #d6d3d1; border-radius: 8px; }
+
+@keyframes pop { from { opacity: 0; transform: translateY(6px) scale(.98); } to { opacity: 1; transform: none; } }
+.pop { animation: pop .14s ease-out; }
+@keyframes fade { from { opacity: 0 } to { opacity: 1 } }
+.fade { animation: fade .12s ease-out; }
+@media print { .no-print { display: none !important; } }
+
+@layer base { th, td { padding: .55rem .75rem; vertical-align: middle; } th:first-child, td:first-child { padding-left: 1rem; } th:last-child, td:last-child { padding-right: 1rem; } }
+
+
+/* ======================= Mobile (< 768 px) ======================= */
+@media (max-width: 767px) {
+  .px-8 { padding-left: 1rem !important; padding-right: 1rem !important; }
+  .pt-7 { padding-top: 1rem !important; }
+  /* iOS zoome sur les champs < 16 px : on évite */
+  input:not([type=checkbox]):not([type=radio]), select, textarea { font-size: 16px !important; }
+  input:not([type=checkbox]):not([type=radio]), select { min-height: 42px; }
+  button { touch-action: manipulation; }
+  /* formulaires : une colonne */
+  .form-stack .grid { grid-template-columns: minmax(0, 1fr) !important; }
+  .form-stack .grid > * { grid-column: auto !important; }
+  /* barres d'outils : retour à la ligne plutôt que débordement */
+  .toolbar { flex-wrap: wrap; }
+  .toolbar > * { max-width: 100%; }
+  .toolbar .relative { width: 100% !important; margin-left: 0 !important; }
+  /* tableaux → cartes d'application (grille 2 colonnes, titre pleine largeur) */
+  main table.rt { display: block; width: 100%; min-width: 0 !important; }
+  table.rt thead { display: none; }
+  table.rt tbody { display: block; }
+  table.rt tr { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 8px 14px; background: #fff; border: 1px solid var(--color-line); border-radius: 16px; margin: 0 0 10px; padding: 14px 16px; box-shadow: 0 1px 2px rgba(28,25,23,.04); position: relative; }
+  table.rt tr:active { background: #faf9f5; }
+  table.rt td { display: block; padding: 0 !important; border: 0 !important; text-align: left !important; min-width: 0; font-size: 14px; word-break: break-word; }
+  table.rt td::before { content: attr(data-label); display: block; font-size: 10.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: #a8a29e; margin-bottom: 2px; }
+  table.rt td[data-label=""]::before, table.rt td:first-child::before { display: none; }
+  table.rt td:first-child { grid-column: 1 / -1; font-size: 15.5px; font-weight: 600; padding-right: 36px !important; }
+  table.rt td[data-wide] { grid-column: 1 / -1; }
+  table.rt td[data-act] { position: absolute; top: 12px; right: 12px; width: auto; }
+  table.rt td:empty { display: none; }
+  table.rt td.num, table.rt td .num { font-variant-numeric: tabular-nums; }
+  table.rt td:empty { display: none; }
+  table.rt td > * { min-width: 0; }
+  table.rt tfoot { display: block; }
+  .overflow-x-auto:has(> table.rt), .overflow-auto:has(> table.rt) { overflow: visible !important; }
+  /* modales : plein écran utile, défilement interne */
+  [role=dialog] { max-height: calc(100dvh - 24px); }
+}
+@media (max-width: 767px) {
+  main :is(.overflow-hidden, .overflow-auto, .overflow-x-auto):has(> table) { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+}
+/* Mobile : zones tactiles ≥ 44 px, espacement ≥ 8 px (recommandation iOS) */
+@media (max-width: 767px) {
+  main button:not([role=checkbox]):not(.no-tap), main a[href].inline-flex { min-height: 44px; }
+  main button { padding-left: max(.75rem, var(--tap-px, 0px)); }
+  main a[href]:not(.inline-flex):not(.no-tap) { display: inline-block; padding-block: 12px; }
+  aside nav a, aside button { min-height: 44px; }
+  main input[type=checkbox] { width: 22px; height: 22px; }
+  main :is(.flex, .grid) { row-gap: max(var(--tw-gap, 0px), 0px); }
+}
+
+@media (max-width: 767px) {
+  html, body { overflow-x: hidden; overscroll-behavior-x: none; max-width: 100vw; }
+  main { overflow-x: hidden !important; overscroll-behavior: contain; }
+}
+
+.chips { scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+@media (max-width: 767px) {
+  .chips button { min-height: 40px !important; }
+  h1.font-serif { font-size: 26px; line-height: 1.15; }
+}
+@media (max-width: 767px) {
+  main .flex:not(.flex-col):has(> .chips) { flex-wrap: wrap; row-gap: 12px; }
+  main .flex:has(> .chips) > .ml-auto { margin-left: 0; }
+  main h1.font-serif { margin-bottom: 4px; }
+}
+@media (max-width: 767px) {
+  main :is(div):has(> table.rt) { background: transparent !important; border: 0 !important; box-shadow: none !important; border-radius: 0 !important; overflow: visible !important; }
+}
+@media (max-width: 767px) {
+  table.rt tr { gap: 6px 14px; padding: 13px 15px; }
+  table.rt td[data-wide]::before { display: none; }
+  table.rt td { font-size: 13.5px; }
+  table.rt td:first-child { font-size: 15px; }
+}
+@media (max-width: 767px) {
+  main .grid { row-gap: 12px; }
+}

@@ -1,0 +1,5 @@
+# Remplacer par votre nom de domaine (ex. gestion.samlock.fr) pointant vers le serveur
+gestion.example.com {
+	encode gzip
+	reverse_proxy app:3001
+}

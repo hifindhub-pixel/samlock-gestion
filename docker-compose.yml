@@ -1,0 +1,15 @@
+# Lancement : copier deploy/.env.example en .env, le remplir, puis `docker compose up -d`
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment: { DATA_DIR: /data }
+    volumes: [ "./data:/data" ]
+  caddy:                       # HTTPS automatique (Let's Encrypt) devant l'application
+    image: caddy:2
+    restart: unless-stopped
+    ports: [ "80:80", "443:443" ]
+    volumes: [ "./deploy/Caddyfile:/etc/caddy/Caddyfile", "caddy_data:/data" ]
+    depends_on: [ app ]
+volumes: { caddy_data: {} }
