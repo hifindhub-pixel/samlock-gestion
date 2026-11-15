@@ -133,5 +133,17 @@ item('SCI-SELFCUT-1424', 'Trousse 6 scies cloches Self Cut Speed 14-24', 'u', 'C
 // Liaison prestations → pièces (la facture fait sortir les pièces du stock)
 for (const [itemId, ref, q] of links) { const part = db.prepare('SELECT id FROM catalog_items WHERE ref=?').get(ref); if (part) db.prepare('INSERT OR REPLACE INTO item_parts(item_id,part_id,qty) VALUES(?,?,?)').run(itemId, part.id, q); else console.warn('Pièce introuvable :', ref); }
 
-if (!process.env.SKIP_AFDB) { console.log('Factures Tiime :', JSON.stringify(importTiimeInvoices())); console.log('Historique achats AFDB :', JSON.stringify(importAfdbHistory())); console.log('Historique ventes Tiime :', JSON.stringify(importTiimeHistory())); }
+if (!process.env.SKIP_AFDB) { console.log('Factures Tiime :', JSON.stringify(importTiimeInvoices())); console.log('Historique achats AFDB :', JSON.stringify(importAfdbHistory())); console.log('Historique ventes Tiime :', JSON.stringify(importTiimeHistory()));
+  // Article générique « Clé plate » : vendu sans achat dédié → pas de suivi de stock.
+  db.prepare("UPDATE catalog_items SET track_stock=0 WHERE supplier_ref='131097' AND label='Clé plate'").run();
+  // Seuils de réapprovisionnement d'après le rythme de vente des 12 derniers mois (une seule fois).
+  if (!db.prepare("SELECT 1 FROM settings WHERE key='stock_levels_init'").get()) {
+    let n = 0;
+    for (const r of db.prepare("SELECT c.id, -SUM(m.qty) AS sold FROM catalog_items c JOIN stock_moves m ON m.item_id=c.id WHERE c.track_stock=1 AND m.qty<0 AND c.stock_min=0 GROUP BY c.id HAVING sold>=3").all()) {
+      const month = r.sold / 12, min = Math.max(1, Math.ceil(month * 1.5)), target = Math.max(min + 1, Math.ceil(month * 3));
+      db.prepare('UPDATE catalog_items SET stock_min=?, stock_target=? WHERE id=?').run(min, target, r.id); n++;
+    }
+    db.prepare("INSERT OR REPLACE INTO settings(key,value) VALUES('stock_levels_init',?)").run(new Date().toISOString());
+    console.log('Seuils de stock initialisés :', n);
+  } }
 console.log('Base SAMLOCK initialisée : catalogue, fournisseurs, sous-traitants, clients de démonstration.');
