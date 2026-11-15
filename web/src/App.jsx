@@ -22,6 +22,7 @@ const Compta = lazy(() => import('./pages/Compta.jsx'));
 const Agenda = lazy(() => import('./pages/Agenda.jsx'));
 import SignPage from './pages/SignPage.jsx';
 import SubPublic from './pages/SubPublic.jsx';
+import TeamPortal from './pages/TeamPortal.jsx';
 const Chat = lazy(() => import('./pages/Chat.jsx'));
 const Planning = lazy(() => import('./pages/Planning.jsx'));
 const Stock = lazy(() => import('./pages/Stock.jsx'));
@@ -286,6 +287,7 @@ export default function App() {
           <Route path="/fournisseur/:token" element={<SupplierPublic />} />
           <Route path="/signer/:type/:token" element={<SignPage />} />
           <Route path="/soustraitant/:token" element={<SubPublic />} />
+          <Route path="/equipe/:token" element={<TeamPortal />} />
           <Route path="/*" element={<Gate />} />
         </Routes>
         <ConfirmHost />

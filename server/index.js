@@ -27,6 +27,7 @@ import { mountStock } from './stock.js';
 import { mountHistory } from './history.js';
 import { mountIk, travelBracket, distanceKm, ikSettings, ikYear } from './ik.js';
 import { mountSubs } from './subs.js';
+import { mountTeam } from './team.js';
 import { mountOuvrages, recomputeParentsOf, ouvrageDescription } from './ouvrages.js';
 import { logoFile } from './brand.js';
 import { mailConfigured } from './mail.js';
@@ -709,6 +710,7 @@ mountStock(app, { log, outbox: (kind, to, subject, body, refType, refId) => db.p
 mountIk(app, { log });
 mountHistory(app);
 mountSubs(app, { log, token, APP_URL });
+mountTeam(app, { log, setStage, token });
 mountOuvrages(app, { catRow: (id) => db.prepare(`${catSql} WHERE ci.id=?`).get(id) });
 
 /* ------------------------------------------------------------------ Recherche globale (⌘K) */

@@ -38,6 +38,21 @@ export default function InterventionDetail() {
   );
 }
 
+/* ----------------------------------------------------------------- Intervenant (sous-traitant avec espace personnel) */
+function ProjectSub({ p }) {
+  const toast = useToast(); const { data } = useFetch(() => get('/subcontractors')); const [v, setV] = useState(p.sub_id || '');
+  if (!data || !data.rows.length) return null;
+  return (
+    <Card className="p-4 flex flex-wrap items-center gap-3">
+      <div className="text-[13px] font-medium">Intervenant</div>
+      <Select className="max-w-xs" value={v} onChange={async (e) => { const n = e.target.value; setV(n); try { await put(`/interventions/${p.id}/sub`, { sub_id: n || null }); toast(n ? 'Intervention attribuée : elle apparaît dans son espace' : 'Attribution retirée'); } catch (er) { toast(er.message, 'err'); } }}>
+        <option value="">Aucun (SAMLOCK)</option>{data.rows.map((s) => <option key={s.id} value={s.id}>{s.company || s.name}</option>)}
+      </Select>
+      <div className="text-[12px] text-stone-400">Partage du gain réel appliqué selon sa commission.</div>
+    </Card>
+  );
+}
+
 /* ----------------------------------------------------------------- Vue d'ensemble */
 function Overview({ d, act }) {
   const { project: p, planned: pl, quotes, invoices } = d; const info = p.info || {};
@@ -47,6 +62,7 @@ function Overview({ d, act }) {
   return (
     <div className="grid lg:grid-cols-3 gap-6">
       <div className="lg:col-span-2 space-y-6">
+        <ProjectSub p={p} />
         <Card className="p-5">
           <h3 className="font-semibold mb-3">Rentabilité prévue <span className="text-stone-400 font-normal text-[12.5px]">(devis signés + avenants)</span></h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
