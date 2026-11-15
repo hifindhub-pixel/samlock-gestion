@@ -38,7 +38,12 @@ export function importTiimeInvoices() {
       const avoir = ht < 0; const number = tiimeNumber(n, avoir);
       const issued = `${date} 12:00:00`;
       const existing = db.prepare('SELECT id FROM invoices WHERE number=?').get(number);
-      if (existing) { idByNumber.set(`${avoir ? 'A' : 'F'}${n}`, existing.id); res.updated++; continue; }
+      if (existing) {
+        // coquille à 0 € créée avant l'export Tiime : remplacée par la vraie facture
+        const ph = db.prepare("SELECT project_id FROM invoices WHERE id=? AND total_ttc=0 AND title LIKE 'Facture à compléter%'").get(existing.id);
+        if (ph && lines.length) { db.prepare('DELETE FROM invoices WHERE id=?').run(existing.id); db.prepare('DELETE FROM projects WHERE id=?').run(ph.project_id); res.replaced = (res.replaced || 0) + 1; }
+        else { idByNumber.set(`${avoir ? 'A' : 'F'}${n}`, existing.id); res.updated++; continue; }
+      }
       const a = splitAddress(addr);
       const cid = getClient(client, addr);
       const pid = db.prepare("INSERT INTO projects(contact_id,title,address,city,stage) VALUES(?,?,?,?,'intervention_terminee')").run(cid, (title || `Intervention ${number}`).slice(0, 120), a.street || null, a.city || null).lastInsertRowid;
@@ -53,9 +58,6 @@ export function importTiimeInvoices() {
       if (!avoir && km != null) {
         db.prepare("INSERT OR REPLACE INTO ik_trips(invoice_id,origin,destination,km_one_way,km_total,method,manual,error,computed_at) VALUES(?,?,?,?,?,'manuel',1,NULL,datetime('now'))")
           .run(iid, null, addr, km, round2(km * 2)); res.trips++;
-      } else if (!avoir) {
-        // absent du fichier IK_SAMLOCK.xlsx : aucun déplacement retenu (modifiable facture par facture)
-        db.prepare("INSERT OR REPLACE INTO ik_trips(invoice_id,origin,destination,km_one_way,km_total,method,manual,error,computed_at) VALUES(?,?,?,0,0,'manuel',1,NULL,datetime('now'))").run(iid, null, '');
       }
       res.created++;
     }
