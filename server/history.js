@@ -67,10 +67,26 @@ export function importTiimeInvoices() {
 }
 
 export function mountHistory(app) {
-  // Première ouverture : reprise automatique (une seule fois ; le bouton « Reprendre l'historique » reste disponible).
-  if (!db.prepare("SELECT 1 FROM settings WHERE key='tiime_invoices_imported'").get() && !process.env.SKIP_AFDB) {
-    try { const r = importTiimeInvoices(); db.prepare("INSERT OR REPLACE INTO settings(key,value) VALUES('tiime_invoices_imported',?)").run(new Date().toISOString()); console.log('Factures Tiime reprises :', JSON.stringify(r)); }
+  // Reprise automatique des factures Tiime : au premier lancement, puis à chaque nouvelle version des données
+  // (idempotent : les factures déjà présentes sont conservées, les fiches « à compléter » sont remplacées).
+  const version = `v${TIIME_INVOICES.length}-${TIIME_INVOICES.reduce((a, d) => a + (d[7]?.length || 0), 0)}`;
+  const seen = db.prepare("SELECT value FROM settings WHERE key='tiime_invoices_imported'").get();
+  if ((!seen || !String(seen.value).includes(version)) && !process.env.SKIP_AFDB) {
+    try { const r = importTiimeInvoices(); db.prepare("INSERT OR REPLACE INTO settings(key,value) VALUES('tiime_invoices_imported',?)").run(`${new Date().toISOString()} ${version}`); console.log('Factures Tiime reprises :', JSON.stringify(r)); }
     catch (e) { console.error('Reprise des factures Tiime impossible :', e.message); }
+  }
+  // « Clé plate » non suivie + seuils de réapprovisionnement d'après les ventes (une seule fois).
+  if (!process.env.SKIP_AFDB) {
+    try {
+      db.prepare("UPDATE catalog_items SET track_stock=0 WHERE supplier_ref='131097' AND label='Clé plate'").run();
+      if (!db.prepare("SELECT 1 FROM settings WHERE key='stock_levels_init'").get()) {
+        for (const r of db.prepare("SELECT c.id, -SUM(m.qty) AS sold FROM catalog_items c JOIN stock_moves m ON m.item_id=c.id WHERE c.track_stock=1 AND m.qty<0 AND c.stock_min=0 GROUP BY c.id HAVING sold>=3").all()) {
+          const month = r.sold / 12, min = Math.max(1, Math.ceil(month * 1.5)), target = Math.max(min + 1, Math.ceil(month * 3));
+          db.prepare('UPDATE catalog_items SET stock_min=?, stock_target=? WHERE id=?').run(min, target, r.id);
+        }
+        db.prepare("INSERT OR REPLACE INTO settings(key,value) VALUES('stock_levels_init',?)").run(new Date().toISOString());
+      }
+    } catch (e) { console.error('Seuils de stock :', e.message); }
   }
   app.post('/api/import-tiime-invoices', (req, res) => { try { res.json(importTiimeInvoices()); } catch (e) { res.status(e.status || 500).json({ error: e.message }); } });
 }
