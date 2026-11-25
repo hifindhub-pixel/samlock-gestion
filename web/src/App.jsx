@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
-import { BrowserRouter, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Kanban, Users, FileText, Package, ShieldCheck, HardHat, CalendarDays, Receipt, Landmark, CalendarCheck, Share2, Settings as Cog, Search, Plus, Command, LogOut, Menu, ArrowLeft, FileDown, Sparkles, Boxes, Car, Wrench } from 'lucide-react';
 import { ConfirmHost, ToastProvider, cn, Avatar, BrandMark } from './lib/ui.jsx';
 import { get, post } from './lib/api.js';
@@ -31,9 +31,7 @@ const SousTraitants = lazy(() => import('./pages/SousTraitants.jsx'));
 
 const NAV = [
   { to: '/', label: 'Accueil', icon: LayoutDashboard, end: true },
-  { to: '/pipeline', label: 'Demandes', icon: Kanban },
   { to: '/interventions', label: 'Interventions', icon: HardHat },
-  { to: '/agenda', label: 'Agenda', icon: CalendarCheck },
   { to: '/planning', label: 'Planning', icon: CalendarDays },
   { to: '/devis', label: 'Devis', icon: FileText },
   { to: '/factures', label: 'Factures', icon: Receipt },
@@ -43,8 +41,6 @@ const NAV = [
   { to: '/comptabilite', label: 'Comptabilité', icon: Landmark },
   { to: '/contacts', label: 'Contacts', icon: Users },
   { to: '/catalogue', label: 'Catalogue', icon: Package },
-  { to: '/reseaux', label: 'Réseaux', icon: Share2 },
-  { to: '/chat', label: 'Chat IA', icon: Sparkles },
   { to: '/validations', label: 'Validations', icon: ShieldCheck, badge: true },
 ];
 
@@ -112,7 +108,7 @@ function useResponsiveTables() {
 
 function MobileNav({ pending, setNavOpen }) {
   const loc = useLocation();
-  const main = ['/', '/interventions', '/devis', '/agenda'];
+  const main = ['/', '/interventions', '/devis', '/planning'];
   const items = NAV.filter((n) => main.includes(n.to));
   const cls = (a) => cn('relative flex flex-col items-center justify-center gap-0.5 pt-2 pb-1.5 text-[10.5px] font-medium', a ? 'text-accent' : 'text-stone-500');
   const inMain = main.some((m) => (m === '/' ? loc.pathname === '/' : loc.pathname.startsWith(m)));
@@ -241,12 +237,12 @@ function Shell({ auth }) {
         <Suspense fallback={<div className="p-8"><div className="h-8 w-48 rounded-lg bg-stone-200/70 animate-pulse" /><div className="mt-6 grid grid-cols-2 lg:grid-cols-4 gap-4">{[0,1,2,3].map((i) => <div key={i} className="h-28 rounded-2xl bg-stone-200/50 animate-pulse" />)}</div></div>}>
         <Routes>
           <Route path="/" element={<Dashboard />} />
-          <Route path="/pipeline" element={<Pipeline />} />
+          <Route path="/pipeline" element={<Navigate to="/" replace />} />
           <Route path="/interventions" element={<Interventions />} />
           <Route path="/interventions/:id" element={<InterventionDetail />} />
-          <Route path="/agenda" element={<Agenda />} />
+          <Route path="/agenda" element={<Navigate to="/" replace />} />
           <Route path="/planning" element={<Planning />} />
-          <Route path="/reseaux" element={<Social />} />
+          <Route path="/reseaux" element={<Navigate to="/" replace />} />
           <Route path="/factures" element={<Invoices />} />
           <Route path="/stock" element={<Stock />} />
           <Route path="/sous-traitants" element={<SousTraitants />} />
@@ -257,7 +253,7 @@ function Shell({ auth }) {
           <Route path="/catalogue" element={<Catalog />} />
           <Route path="/devis" element={<Quotes />} />
           <Route path="/devis/:id" element={<QuoteEditor />} />
-          <Route path="/chat" element={<Chat />} />
+          <Route path="/chat" element={<Navigate to="/" replace />} />
           <Route path="/validations" element={<Validations />} />
           <Route path="/parametres" element={<Settings />} />
         </Routes>

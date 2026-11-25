@@ -30,7 +30,6 @@ function QuickActions() {
     <div className="flex flex-wrap gap-2.5">
       <A primary icon={Plus} label="Nouveau devis" onClick={newQuote} />
       <A icon={UserPlus} label="Nouveau contact" onClick={() => nav('/contacts?new=1')} />
-      <A icon={CalendarCheck} label="Nouvelle tâche" onClick={() => nav('/agenda?new=1')} />
     </div>
   );
 }
@@ -44,7 +43,7 @@ function Today() {
   const done = async (t) => { try { await post(`/tasks/${t.id}/done`, { done: true }); reload(); } catch (e) { toast(e.message, 'err'); } };
   return (
     <Card className="p-5">
-      <div className="flex items-center gap-2 mb-3"><CalendarCheck size={16} className="text-accent" /><h2 className="font-semibold">Aujourd'hui</h2><Link to="/agenda" className="ml-auto text-accent text-[12.5px] font-medium flex items-center gap-1">Agenda <ArrowRight size={13} /></Link></div>
+      <div className="flex items-center gap-2 mb-3"><CalendarCheck size={16} className="text-accent" /><h2 className="font-semibold">Aujourd'hui</h2></div>
       {rows.length === 0 ? <div className="text-stone-400 py-4 text-center flex items-center justify-center gap-2"><CheckCircle2 size={16} /> Rien d'urgent aujourd'hui.</div> : (
         <div className="divide-y divide-line">{rows.map((t) => {
           const late = t.due_at.slice(0, 10) < today;
@@ -167,7 +166,7 @@ export default function Dashboard() {
 
         <div className="grid lg:grid-cols-3 gap-6">
           <Card className="lg:col-span-2 p-5">
-            <div className="flex items-center justify-between mb-4"><h2 className="font-semibold">Pipeline</h2><Link to="/pipeline" className="text-accent text-[12.5px] font-medium flex items-center gap-1">Ouvrir <ArrowRight size={13} /></Link></div>
+            <div className="flex items-center justify-between mb-4"><h2 className="font-semibold">Pipeline</h2></div>
             <div className="space-y-2.5">
               {STAGES.map((s) => (
                 <div key={s} className="flex items-center gap-3">
