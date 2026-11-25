@@ -220,6 +220,16 @@ addCol('quotes', 'imported', 'INTEGER NOT NULL DEFAULT 0');
 addCol('contacts', 'client_type', "TEXT NOT NULL DEFAULT 'particulier'");
 for (const [col, def] of [['done_at', 'TEXT'], ['paid_at', 'TEXT'], ['paid_amount', 'REAL'], ['paid_method', 'TEXT'], ['sub_invoice_ref', 'TEXT'], ['done_note', 'TEXT']]) addCol('assignments', col, def);
 db.exec(`
+-- Consommation de l'assistant IA (tokens et coût estimé en euros)
+CREATE TABLE IF NOT EXISTS ai_usage (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  at TEXT NOT NULL DEFAULT (datetime('now')),
+  kind TEXT NOT NULL,
+  model TEXT NOT NULL,
+  tokens_in INTEGER NOT NULL DEFAULT 0,
+  tokens_out INTEGER NOT NULL DEFAULT 0,
+  cost_eur REAL NOT NULL DEFAULT 0
+);
 -- « Bylk » : stock sorti par des factures ensuite supprimées (non remis en stock, suivi à part)
 CREATE TABLE IF NOT EXISTS stock_bylk (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -290,7 +300,7 @@ export const DEFAULT_SETTINGS = {
   smtp_pass: '',
   imap_host: 'imap.hostinger.com', imap_user: 'contact@samlock.fr', imap_pass: '',
   stripe_secret: '', stripe_webhook_secret: '', auto_reminders: '1',
-  anthropic_api_key: '', agent_model: 'claude-sonnet-5-5',
+  anthropic_api_key: '', agent_model: 'claude-sonnet-5-5', chat_model: 'claude-haiku-5-5', ai_budget_month: '10',
   whatsapp_token: '', whatsapp_phone_id: '', whatsapp_verify_token: '', whatsapp_app_secret: '', whatsapp_allowed: '',
   accounting_provider: 'export',
   accounting_webhook_url: '',

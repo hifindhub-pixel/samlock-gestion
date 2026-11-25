@@ -39,7 +39,7 @@ export default function Quotes() {
   const nav = useNavigate();
   const { data } = useFetch(() => get('/quotes'));
   const [status, setStatus] = useState('all');
-  const [q, setQ] = useState(''); const [ai, setAi] = useState(false);
+  const [q, setQ] = useState(''); const [ai, setAi] = useState(false); const { data: agent } = useFetch(() => get('/agent/status'));
   const [params, setParams] = useSearchParams();
   const toast = useToast();
   const createNew = async () => { try { const x = await post('/quotes', {}); nav(`/devis/${x.id}`); } catch (e) { toast(e.message, 'err'); } };
@@ -52,7 +52,7 @@ export default function Quotes() {
   return (
     <div>
       {ai && <AiModal onClose={() => setAi(false)} />}
-      <PageHeader title="Devis" actions={<><Btn icon={Sparkles} onClick={() => setAi(true)}>Assistant IA</Btn><Btn variant="primary" icon={Plus} onClick={createNew}>Nouveau devis</Btn></>} />
+      <PageHeader title="Devis" actions={<>{agent?.ready && <Btn icon={Sparkles} onClick={() => setAi(true)}>Assistant IA</Btn>}<Btn variant="primary" icon={Plus} onClick={createNew}>Nouveau devis</Btn></>} />
       <div className="px-8 pb-10">
         <div className="flex flex-wrap items-center gap-3 mb-4">
           <Chips value={status} onChange={setStatus} options={tabs.map(([k, l]) => [k, l, countOf(k)])} />

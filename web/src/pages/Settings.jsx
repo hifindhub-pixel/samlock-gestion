@@ -40,7 +40,7 @@ function PayCard({ f, set, setF }) {
 }
 
 export default function Settings() {
-  const { data } = useFetch(() => get('/settings'));
+  const { data } = useFetch(() => get('/settings')); const { data: usage } = useFetch(() => get('/agent/status'));
   const [f, setF] = useState(null); const [busy, setBusy] = useState(false); const [testing, setTesting] = useState(false); const [testTo, setTestTo] = useState(''); const toast = useToast();
   useEffect(() => { if (data) setF(data); }, [data]);
   if (!f) return null;
@@ -74,12 +74,15 @@ export default function Settings() {
           </div></Card>
         <PayCard f={f} set={set} setF={setF} />
       <InboxCard f={f} set={set} />
-        <Card className="p-5"><h2 className="font-semibold mb-1">Assistant IA et WhatsApp</h2>
-          <p className="text-stone-500 mb-4">L'assistant prépare des <b>brouillons</b> (devis depuis un texte dicté, lecture de factures fournisseurs). Rien n'est jamais envoyé à un client sans votre validation, et aucun prix n'est inventé : un ouvrage absent du catalogue devient une ligne « à chiffrer ».</p>
+        <Card className="p-5"><h2 className="font-semibold mb-1">Assistant IA (chat et micro)</h2>
+          <p className="text-stone-500 mb-4">L'assistant répond aux questions sur l'activité et prépare des <b>brouillons</b> de devis et de factures dictés. Rien n'est jamais envoyé ni validé sans vous, et aucun prix n'est inventé. Il apparaît dans le menu (et en bouton micro) dès que la clé est enregistrée. La clé se crée sur <b>platform.claude.com</b> (compte API, crédit prépayé à recharger), distincte de l'abonnement claude.ai.</p>
           <div className="grid grid-cols-3 gap-3.5">
-            <Field label="Clé API Claude" className="col-span-2" hint="Créée sur console.anthropic.com (usage facturé à la consommation)"><Input type="password" value={f.anthropic_api_key || ''} onChange={set('anthropic_api_key')} placeholder={f.anthropic_api_key_set ? '•••••••• (enregistrée — laisser vide pour conserver)' : 'sk-ant-…'} autoComplete="new-password" /></Field>
-            <Field label="Modèle"><Input value={f.agent_model || ''} onChange={set('agent_model')} /></Field>
+            <Field label="Clé API Claude" className="col-span-3" hint="Commence par sk-ant-… ; elle n'est jamais réaffichée après enregistrement."><Input type="password" value={f.anthropic_api_key || ''} onChange={set('anthropic_api_key')} placeholder={f.anthropic_api_key_set ? '•••••••• (enregistrée — laisser vide pour conserver)' : 'sk-ant-…'} autoComplete="new-password" /></Field>
+            <Field label="Plafond par mois (€)" hint="L'assistant se bloque une fois atteint. 0 = sans plafond."><Input inputMode="decimal" value={f.ai_budget_month ?? ''} onChange={set('ai_budget_month')} /></Field>
+            <Field label="Modèle des brouillons" hint="Chiffre devis et factures"><Input value={f.agent_model || ''} onChange={set('agent_model')} /></Field>
+            <Field label="Modèle du chat" hint="Questions simples (moins cher)"><Input value={f.chat_model || ''} onChange={set('chat_model')} /></Field>
           </div>
+          {usage && f.anthropic_api_key_set && <p className="mt-3 text-[13px] text-stone-600">Consommation ce mois-ci : <b>{usage.month_eur.toFixed(2).replace('.', ',')} €</b>{usage.budget_eur > 0 ? <> sur {usage.budget_eur} €</> : null} · {usage.calls} appel(s) <span className="text-stone-400">(estimation ; le détail exact est sur platform.claude.com)</span></p>}
           <div className="mt-5 pt-4 border-t border-line">
             <h3 className="font-medium mb-1">Devis par WhatsApp <span className="text-stone-400 font-normal">(optionnel)</span></h3>
             <p className="text-stone-500 text-[13px] mb-3">Vous écrivez l’intervention à votre numéro WhatsApp Business, le brouillon est créé et le lien vous est renvoyé. Nécessite un compte Meta for Developers (WhatsApp Cloud API). URL du webhook à renseigner chez Meta : <code className="bg-stone-100 rounded px-1.5 py-0.5 text-[12px]">{location.origin}/api/public/whatsapp</code></p>

@@ -6,27 +6,18 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { db, getSettings, DATA_DIR, round2 } from './db.js';
 import { ouvrageDescription } from './ouvrages.js';
+import { claude, err, apiKey, agentReady, usageSummary } from './ai-core.js';
+import { buildDirectInvoice } from './billing.js';
+import { ensureTrip } from './ik.js';
+export { apiKey, agentReady };
 
 db.exec(`CREATE TABLE IF NOT EXISTS wa_messages (id TEXT PRIMARY KEY, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
 
-const err = (m, status = 400) => Object.assign(new Error(m), { status });
-export const apiKey = () => getSettings().anthropic_api_key || process.env.ANTHROPIC_API_KEY || '';
-export const agentReady = () => !!apiKey();
 
 /** Appel à l'API Messages (outil forcé → réponse structurée). */
-export async function callClaude({ system, content, tool, max_tokens = 4000 }) {
-  const key = apiKey(); if (!key) throw err("L'assistant IA n'est pas activé : renseignez votre clé API dans Réglages.", 400);
-  const S = getSettings(); const base = (process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com').replace(/\/$/, '');
-  let r;
-  try {
-    r = await fetch(`${base}/v1/messages`, {
-      method: 'POST', signal: AbortSignal.timeout(90000),
-      headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: S.agent_model || 'claude-sonnet-5-5', max_tokens, system, tools: [tool], tool_choice: { type: 'tool', name: tool.name }, messages: [{ role: 'user', content }] }),
-    });
-  } catch (e) { throw err(`Service IA injoignable (${e.name === 'TimeoutError' ? 'délai dépassé' : e.message}).`, 502); }
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw err(r.status === 401 ? 'Clé API refusée par le service IA : vérifiez-la dans Réglages.' : `Service IA : ${j.error?.message || r.status}`, r.status === 401 ? 400 : 502);
+export async function callClaude({ system, content, tool, max_tokens = 4000, kind = 'brouillon' }) {
+  const S = getSettings();
+  const j = await claude({ kind, model: S.agent_model || 'claude-sonnet-5-5', max_tokens, system, tools: [tool], tool_choice: { type: 'tool', name: tool.name }, messages: [{ role: 'user', content }] });
   const use = (j.content || []).find((c) => c.type === 'tool_use');
   if (!use) throw err("L'assistant n'a pas pu structurer sa réponse. Reformulez ou précisez la demande.", 502);
   return use.input;
@@ -62,7 +53,7 @@ const QUOTE_TOOL = {
   },
 };
 
-const SYSTEM_DEVIS = `Tu es l'assistant de SAMLOCK, entreprise de rénovation du bâtiment. L'artisan te dicte ou écrit les informations d'une intervention ; tu prépares le brouillon de devis.
+const SYSTEM_DEVIS = `Tu es l'assistant de SAMLOCK, entreprise de serrurerie et dépannage (Montpellier). L'artisan te dicte ou écrit les informations d'une intervention ; tu prépares le brouillon de devis.
 Règles strictes :
 - Utilise en priorité les articles du catalogue fourni (indique leur catalog_id) quand la correspondance est claire. Sinon catalog_id = null : la ligne sera « à chiffrer ».
 - N'invente jamais de prix, de quantité ni d'information. Si une quantité manque, mets 1 et signale-le dans warnings.
@@ -132,10 +123,65 @@ export function createDraft(out, { projectId, token, log }) {
   return { quote_id: qid, project_id: project.id, contact_id: project.contact_id, lines: n, to_price: toPrice, warnings, created_contact: created };
 }
 
+/* ------------------------------------------------------------------ Facture directe (sans devis) */
+export const INVOICE_TOOL = {
+  name: 'creer_brouillon_facture',
+  description: "Prépare le brouillon d'une facture directe (intervention déjà réalisée, sans devis préalable).",
+  input_schema: {
+    type: 'object',
+    properties: {
+      client_name: { type: 'string', description: 'Nom du client tel que cité (personne ou société)' },
+      client_phone: { type: 'string' }, client_email: { type: 'string' },
+      address: { type: 'string', description: "Adresse de l'intervention si citée" }, city: { type: 'string' },
+      project_title: { type: 'string', description: "Intitulé court de l'intervention, ex. « Ouverture de porte claquée »" },
+      intervention_date: { type: 'string', description: "Date de l'intervention AAAA-MM-JJ si citée, sinon vide" },
+      claim_ref: { type: 'string', description: 'Numéro de sinistre / référence assureur si cité' },
+      lines: QUOTE_TOOL.input_schema.properties.lines,
+      warnings: { type: 'array', items: { type: 'string' } },
+    },
+    required: ['client_name', 'lines'],
+  },
+};
+
+/** Prix énoncé → prix unitaire HT (jamais inventé). */
+function saidPrice(l, qty, vat, warnings) {
+  const a = Number(l.amount); if (l.amount == null || !Number.isFinite(a) || !(a > 0)) return null;
+  const kind = ['unitaire_ht', 'unitaire_ttc', 'total_ht', 'total_ttc'].includes(l.amount_kind) ? l.amount_kind : 'unitaire_ht';
+  let u = kind.startsWith('total') ? a / qty : a;
+  if (kind.endsWith('ttc')) { u = u / (1 + vat / 100); warnings.push(`« ${l.label} » : prix TTC converti en HT avec une TVA de ${vat} %, à vérifier.`); }
+  return round2(u);
+}
+
+/** Brouillon de facture directe. Rien n'est numéroté ni envoyé : la facture reste à relire et valider. */
+export function createInvoiceDraft(out, { log }) {
+  const S = getSettings(); const lines = Array.isArray(out.lines) ? out.lines.slice(0, 60) : [];
+  if (!lines.length) throw err("Aucune prestation n'a été identifiée : dites ce qui a été fait et le prix.");
+  const warnings = [...(out.warnings || [])]; const built = []; const missing = [];
+  for (const l of lines) {
+    const qty = Number(l.qty) > 0 ? Number(l.qty) : 1;
+    const it = l.catalog_id ? db.prepare('SELECT * FROM catalog_items WHERE id=? AND archived=0').get(Number(l.catalog_id)) : null;
+    const vat = it ? it.vat : Number(S.vat_default);
+    const said = saidPrice(l, qty, vat, warnings);
+    const price = said ?? (it ? it.price_ht : null);
+    const label = String(it?.label || l.label || '').trim() || 'Prestation';
+    if (!(price > 0)) { missing.push(label); continue; }
+    if (it && said != null && Math.abs(said - it.price_ht) > 0.004) warnings.push(`« ${it.label} » : prix dicté ${said} € HT au lieu de ${it.price_ht} € au catalogue.`);
+    built.push({ item_id: it?.id || null, label: l.description ? `${label} — ${String(l.description).trim()}` : label, qty, unit: it?.unit || String(l.unit || 'u'), unit_price: price });
+  }
+  if (missing.length) throw err(`Prix manquant pour : ${missing.join(', ')}. Redites la demande en précisant le prix de chaque prestation (une facture ne se chiffre jamais « à deviner »).`);
+  const { project, created } = resolveProject({ ...out, project_title: out.project_title || 'Intervention' }, null);
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(out.intervention_date || '') ? out.intervention_date : undefined;
+  const inv = buildDirectInvoice(project.id, built, { claim_ref: out.claim_ref, intervention_date: date });
+  ensureTrip(inv.id).catch(() => {});
+  log('facture', `Brouillon de facture préparé par l'assistant IA (${built.length} ligne(s))`, { contact_id: project.contact_id, project_id: project.id });
+  return { invoice_id: inv.id, project_id: project.id, contact_id: project.contact_id, lines: built.length, total_ttc: inv.total_ttc, warnings, created_contact: created };
+}
+
+export const QUOTE_TOOL_DEF = QUOTE_TOOL; export const SYSTEM_DEVIS_TEXT = SYSTEM_DEVIS; export { catalogContext };
 export async function draftFromText(text, opts) {
   const t = String(text || '').trim(); if (t.length < 8) throw err('Décrivez les travaux (client, pièces, prestations, surfaces).');
   if (t.length > 6000) throw err('Texte trop long (6000 caractères maximum).');
-  const out = await callClaude({ system: SYSTEM_DEVIS, tool: QUOTE_TOOL, content: `CATALOGUE (id | désignation | unité | prix) :\n${catalogContext()}\n\nDEMANDE DE L'ARTISAN :\n${t}` });
+  const out = await callClaude({ kind: 'devis', system: SYSTEM_DEVIS, tool: QUOTE_TOOL, content: `CATALOGUE (id | désignation | unité | prix) :\n${catalogContext()}\n\nDEMANDE DE L'ARTISAN :\n${t}` });
   return createDraft(out, opts);
 }
 
@@ -156,7 +202,7 @@ export async function scanExpense(file) {
   const block = mt === 'application/pdf' ? { type: 'document', source: { type: 'base64', media_type: mt, data } }
     : /^image\/(jpeg|png|gif|webp)$/.test(mt) ? { type: 'image', source: { type: 'base64', media_type: mt, data } } : null;
   if (!block) throw err('Format non pris en charge : envoyez un PDF ou une photo (JPEG, PNG).');
-  const out = await callClaude({ system: "Tu lis des factures d'achat d'une entreprise du bâtiment (SAMLOCK est le CLIENT, jamais le fournisseur). Extrais uniquement ce qui est écrit sur le document ; n'invente rien. Montants en euros, nombres décimaux.", tool: EXPENSE_TOOL, max_tokens: 1000,
+  const out = await callClaude({ system: "Tu lis des factures d'achat d'une entreprise du bâtiment (SAMLOCK est le CLIENT, jamais le fournisseur). Extrais uniquement ce qui est écrit sur le document ; n'invente rien. Montants en euros, nombres décimaux.", tool: EXPENSE_TOOL, max_tokens: 1000, kind: 'lecture-facture',
     content: [block, { type: 'text', text: 'Extrais les informations de cette facture.' }] });
   const warn = [];
   const ht = Number(out.amount_ht), ttc = Number(out.amount_ttc), rate = out.vat_rate != null ? Number(out.vat_rate) : null;
@@ -178,7 +224,7 @@ export async function sendWhatsApp(to, body) {
 }
 
 export function mountAgent(app, { token, log, upload, APP_URL }) {
-  app.get('/api/agent/status', (_q, res) => res.json({ ready: agentReady(), whatsapp: !!(getSettings().whatsapp_token && getSettings().whatsapp_phone_id && getSettings().whatsapp_app_secret) }));
+  app.get('/api/agent/status', (_q, res) => res.json({ ...usageSummary(), ready: agentReady(), whatsapp: !!(getSettings().whatsapp_token && getSettings().whatsapp_phone_id && getSettings().whatsapp_app_secret) }));
   app.post('/api/agent/devis', async (req, res) => {
     try { res.json(await draftFromText(req.body.text, { projectId: Number(req.body.project_id) || null, token, log })); } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
   });

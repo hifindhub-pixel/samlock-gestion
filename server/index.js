@@ -704,7 +704,7 @@ hooks = mountPhase2(app, { loadQuote, log, setStage, token, APP_URL, upload, app
 mountPhase3(app, { log, APP_URL });
 mountCompta(app, { upload, log });
 mountAgenda(app, { log, APP_URL });
-mountChat(app, { quoteTotals });
+mountChat(app, { quoteTotals, token, log });
 mountInbox(app);
 mountPayments(app, { log, APP_URL });
 mountExpenses(app, { upload, log });

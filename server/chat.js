@@ -1,52 +1,77 @@
-// Chat IA SAMLOCK : questions en langage naturel sur l'activité. LECTURE SEULE : l'assistant ne modifie rien,
-// n'envoie rien et n'invente aucun chiffre ; il répond uniquement à partir d'un instantané des données de l'appli.
+// Assistant IA SAMLOCK (texte ou dictée) : répond aux questions sur l'activité et prépare des BROUILLONS de devis ou de factures.
+// Règles : jamais d'envoi, jamais de validation, jamais de prix inventé. Tout brouillon est à relire dans l'appli.
+// Coût maîtrisé : un petit modèle trie la demande ; le modèle précis n'intervient que pour chiffrer un brouillon.
 import { db, getSettings, round2 } from './db.js';
-import { apiKey } from './agent.js';
+import { claude, err } from './ai-core.js';
+import { QUOTE_TOOL_DEF, INVOICE_TOOL, SYSTEM_DEVIS_TEXT, createDraft, createInvoiceDraft } from './agent.js';
 
-const err = (m, status = 400) => Object.assign(new Error(m), { status });
 const eur = (n) => `${round2(n || 0)} €`;
+const d10 = (s) => (s || '').slice(0, 10);
 
 function snapshot(quoteTotals) {
   const L = [];
   const today = new Date().toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   L.push(`Date : ${today}`);
-  const contacts = db.prepare('SELECT id,kind,name,company,email,phone,city,decennale_until,urssaf_until FROM contacts ORDER BY id DESC LIMIT 150').all();
-  L.push(`\nCONTACTS (${contacts.length}) : id | type | nom | société | tél | email | ville | assurance RC | URSSAF`);
-  for (const c of contacts) L.push([c.id, c.kind, c.name, c.company || '', c.phone || '', c.email || '', c.city || '', c.decennale_until || '', c.urssaf_until || ''].join(' | '));
-  const projects = db.prepare('SELECT p.id,p.title,p.stage,p.city,c.name cname FROM projects p JOIN contacts c ON c.id=p.contact_id ORDER BY p.updated_at DESC LIMIT 120').all();
-  L.push(`\nAFFAIRES (${projects.length}) : id | titre | étape | ville | client`);
-  for (const p of projects) L.push([p.id, p.title, p.stage, p.city || '', p.cname].join(' | '));
-  const quotes = db.prepare("SELECT q.id,q.number,q.kind,q.status,q.title,q.created_at,q.sent_at,q.signed_at,p.title ptitle,c.name cname FROM quotes q JOIN projects p ON p.id=q.project_id JOIN contacts c ON c.id=p.contact_id WHERE q.imported=0 ORDER BY q.id DESC LIMIT 120").all();
-  L.push(`\nDEVIS/AVENANTS (${quotes.length}) : numéro | statut | client | intervention | HT | TTC | marge % | créé | envoyé | signé`);
-  for (const q of quotes) { let t = {}; try { t = quoteTotals(q.id) || {}; } catch {} L.push([q.number || 'brouillon', q.status, q.cname, q.ptitle, eur(t.ht), eur(t.ttc), t.margin_pct ?? '', (q.created_at || '').slice(0, 10), (q.sent_at || '').slice(0, 10), (q.signed_at || '').slice(0, 10)].join(' | ')); }
-  const inv = db.prepare("SELECT i.number,i.kind,i.status,i.total_ht,i.total_ttc,i.issued_at,i.due_at,i.paid_at,c.name cname FROM invoices i JOIN projects p ON p.id=i.project_id JOIN contacts c ON c.id=p.contact_id ORDER BY i.id DESC LIMIT 150").all();
-  L.push(`\nFACTURES (${inv.length}) : numéro | type | statut | client | HT | TTC | émise | échéance | payée`);
-  for (const i of inv) L.push([i.number || 'brouillon', i.kind, i.status, i.cname, eur(i.total_ht), eur(i.total_ttc), (i.issued_at || '').slice(0, 10), (i.due_at || '').slice(0, 10), (i.paid_at || '').slice(0, 10)].join(' | '));
-  const tasks = db.prepare('SELECT title,due_at,done FROM tasks WHERE done=0 ORDER BY due_at IS NULL, due_at LIMIT 40').all();
-  L.push(`\nTÂCHES À FAIRE (${tasks.length}) : titre | échéance`);
-  for (const t of tasks) L.push(`${t.title} | ${t.due_at || ''}`);
+  const contacts = db.prepare("SELECT id,kind,name,company,email,phone,address,city FROM contacts ORDER BY id DESC LIMIT 250").all();
+  L.push(`\nCONTACTS (${contacts.length}) : type | nom | société | tél | email | ville`);
+  for (const c of contacts) L.push([c.kind, c.name, c.company || '', c.phone || '', c.email || '', c.city || ''].join(' | '));
+  const quotes = db.prepare("SELECT q.id,q.number,q.status,q.title,q.created_at,q.sent_at,q.signed_at,p.title ptitle,c.name cname FROM quotes q JOIN projects p ON p.id=q.project_id JOIN contacts c ON c.id=p.contact_id WHERE q.imported=0 AND q.kind='devis' ORDER BY q.id DESC LIMIT 100").all();
+  L.push(`\nDEVIS (${quotes.length}) : numéro | statut | client | objet | HT | TTC | créé | envoyé | signé`);
+  for (const q of quotes) { let t = {}; try { t = quoteTotals(q.id) || {}; } catch { /* devis vide */ } L.push([q.number || 'brouillon', q.status, q.cname, q.ptitle, eur(t.ht), eur(t.ttc), d10(q.created_at), d10(q.sent_at), d10(q.signed_at)].join(' | ')); }
+  const inv = db.prepare("SELECT i.number,i.kind,i.status,i.total_ht,i.total_ttc,i.issued_at,i.due_at,i.paid_at,c.name cname FROM invoices i JOIN projects p ON p.id=i.project_id JOIN contacts c ON c.id=p.contact_id ORDER BY i.id DESC LIMIT 200").all();
+  L.push(`\nFACTURES (${inv.length} dernières) : numéro | type | statut | client | HT | TTC | émise | échéance | payée`);
+  for (const i of inv) L.push([i.number || 'brouillon', i.kind, i.status, i.cname, eur(i.total_ht), eur(i.total_ttc), d10(i.issued_at), d10(i.due_at), d10(i.paid_at)].join(' | '));
+  const stock = db.prepare('SELECT label,stock_qty,stock_min,stock_target,unit FROM catalog_items WHERE track_stock=1 AND archived=0 ORDER BY label').all();
+  L.push(`\nSTOCK (${stock.length} articles suivis) : désignation | quantité | seuil mini | cible | unité`);
+  for (const s of stock) L.push([s.label, s.stock_qty, s.stock_min || '', s.stock_target || '', s.unit].join(' | '));
+  const cat = db.prepare('SELECT id,label,unit,price_ht FROM catalog_items WHERE archived=0 ORDER BY category,label LIMIT 700').all();
+  L.push(`\nCATALOGUE (${cat.length}) : id | désignation | unité | prix HT`);
+  for (const c of cat) L.push(`${c.id} | ${c.label} | ${c.unit} | ${c.price_ht} €`);
   return L.join('\n');
 }
 
-export function mountChat(app, { quoteTotals }) {
+const RULES = `Tu es l'assistant de gestion de SAMLOCK, serrurerie et dépannage à Montpellier. Tu réponds en français, de façon courte et concrète, au dirigeant. Le message peut venir d'une dictée vocale : orthographe approximative, noms propres déformés.
+Règles absolues :
+- Questions sur l'activité : réponds uniquement avec les DONNÉES fournies. N'invente aucun chiffre, client, date ni quantité. Si l'information manque (ou dépasse les dernières lignes fournies), dis-le. Pour un calcul, donne le détail.
+- Tu ne peux rien envoyer, valider, supprimer ni modifier. Tu peux seulement PRÉPARER un brouillon avec les outils : creer_brouillon_devis (devis à proposer à un client) ou creer_brouillon_facture (intervention déjà faite, facturée sans devis).
+- N'appelle un outil que si la demande est claire (client + prestations). Sinon pose UNE question courte. Si le nom du client correspond à plusieurs contacts ou à aucun et que c'est ambigu, demande de préciser.
+- Pour un brouillon : n'invente jamais un prix ; reprends le prix dit à voix haute, sinon le prix du catalogue ; pour une facture, un prix absent bloque.
+- Montants en euros. Pas de formules de politesse inutiles.`;
+
+export function mountChat(app, { quoteTotals, token, log }) {
   app.post('/api/chat', async (req, res) => {
     try {
-      const key = apiKey(); if (!key) throw err("L'assistant IA n'est pas activé : renseignez votre clé API dans Paramètres.");
+      const S = getSettings();
       const raw = Array.isArray(req.body.messages) ? req.body.messages : [];
       const messages = raw.filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim()).slice(-16).map((m) => ({ role: m.role, content: m.content.slice(0, 4000) }));
       if (!messages.length || messages[messages.length - 1].role !== 'user') throw err('Posez votre question.');
-      const system = `Tu es l'assistant de gestion de SAMLOCK (entreprise du bâtiment). Tu réponds en français, de façon concise et concrète, aux questions du dirigeant sur son activité, uniquement à partir des DONNÉES ci-dessous. Règles : n'invente aucun chiffre, prix, client ni date ; si l'information n'est pas dans les données, dis-le. Tu es en lecture seule : tu ne peux ni créer, ni modifier, ni envoyer quoi que ce soit — si on te le demande, indique où le faire dans l'appli (Devis, Factures, Agenda, Validations…). Pour les calculs, donne le détail. Montants en euros.\n\nDONNÉES :\n${snapshot(quoteTotals)}`;
-      const base = (process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com').replace(/\/$/, '');
-      let r;
-      try {
-        r = await fetch(`${base}/v1/messages`, { method: 'POST', signal: AbortSignal.timeout(90000),
-          headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-          body: JSON.stringify({ model: getSettings().agent_model || 'claude-sonnet-5-5', max_tokens: 1500, system, messages }) });
-      } catch (e) { throw err(`Service IA injoignable (${e.name === 'TimeoutError' ? 'délai dépassé' : e.message}).`, 502); }
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw err(r.status === 401 ? 'Clé API refusée par le service IA : vérifiez-la dans Paramètres.' : `Service IA : ${j.error?.message || r.status}`, r.status === 401 ? 400 : 502);
-      const text = (j.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('\n').trim();
-      res.json({ reply: text || "Je n'ai pas pu formuler de réponse. Reformulez la question." });
+      const system = [{ type: 'text', text: RULES }, { type: 'text', text: `DONNÉES :\n${snapshot(quoteTotals)}`, cache_control: { type: 'ephemeral' } }];
+      const tools = [
+        { name: QUOTE_TOOL_DEF.name, description: "Prépare un BROUILLON de devis (rien n'est envoyé). À utiliser quand on demande de faire / préparer un devis.", input_schema: QUOTE_TOOL_DEF.input_schema },
+        { name: INVOICE_TOOL.name, description: INVOICE_TOOL.description + " Brouillon à relire ; rien n'est envoyé.", input_schema: INVOICE_TOOL.input_schema },
+      ];
+      // 1) tri par le petit modèle : répond, ou choisit un outil
+      const first = await claude({ kind: 'chat', model: S.chat_model || 'claude-haiku-5-5', max_tokens: 1200, system, messages, tools });
+      const use = (first.content || []).find((c) => c.type === 'tool_use');
+      const text1 = (first.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('\n').trim();
+      if (!use) return res.json({ reply: text1 || "Je n'ai pas pu formuler de réponse. Reformulez la question." });
+
+      // 2) brouillon : le modèle précis refait la structuration (prix, quantités, correspondance catalogue)
+      const tool = tools.find((t) => t.name === use.name);
+      const forced = await claude({ kind: use.name === INVOICE_TOOL.name ? 'facture' : 'devis', model: S.agent_model || 'claude-sonnet-5-5', max_tokens: 4000,
+        system: [{ type: 'text', text: (use.name === INVOICE_TOOL.name ? SYSTEM_DEVIS_TEXT.replace(/prépares le brouillon de devis/, "prépares le brouillon de facture (intervention déjà réalisée)") : SYSTEM_DEVIS_TEXT) }, system[1]],
+        messages, tools: [tool], tool_choice: { type: 'tool', name: tool.name } });
+      const out = (forced.content || []).find((c) => c.type === 'tool_use')?.input;
+      if (!out) throw err("Je n'ai pas pu structurer le brouillon. Précisez : client, prestations, prix.", 502);
+      const warn = (r) => (r.warnings?.length ? `\n⚠️ ${r.warnings.join('\n⚠️ ')}` : '');
+      if (use.name === INVOICE_TOOL.name) {
+        const r = createInvoiceDraft(out, { log });
+        return res.json({ reply: `Brouillon de facture prêt : ${r.lines} ligne(s), ${eur(r.total_ttc)} TTC.${r.created_contact ? '\nNouveau client ajouté (prospect).' : ''}${warn(r)}\nÀ relire et valider : rien n'est envoyé.`,
+          action: { type: 'facture', label: 'Ouvrir la facture', url: `/dossier/${r.project_id}?tab=fact`, ...r } });
+      }
+      const r = createDraft(out, { token, log });
+      return res.json({ reply: `Brouillon de devis prêt : ${r.lines} ligne(s)${r.to_price ? `, dont ${r.to_price} à chiffrer` : ''}.${r.created_contact ? '\nNouveau client ajouté (prospect).' : ''}${warn(r)}\nÀ relire : rien n'est envoyé au client.`,
+        action: { type: 'devis', label: 'Ouvrir le devis', url: `/devis/${r.quote_id}`, ...r } });
     } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
   });
 }

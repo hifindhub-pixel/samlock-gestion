@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
-import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { LayoutDashboard, Kanban, Users, FileText, Package, ShieldCheck, HardHat, CalendarDays, Receipt, Landmark, CalendarCheck, Share2, Settings as Cog, Search, Plus, Command, LogOut, Menu, ArrowLeft, FileDown, Sparkles, Boxes, Car, Wrench } from 'lucide-react';
+import { BrowserRouter, Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { LayoutDashboard, Kanban, Users, FileText, Package, ShieldCheck, HardHat, CalendarDays, Receipt, Landmark, CalendarCheck, Share2, Settings as Cog, Search, Plus, Command, LogOut, Menu, ArrowLeft, FileDown, Sparkles, Boxes, Car, Wrench, Mic } from 'lucide-react';
 import { ConfirmHost, ToastProvider, cn, Avatar, BrandMark } from './lib/ui.jsx';
 import { get, post } from './lib/api.js';
 import Dashboard from './pages/Dashboard.jsx';
@@ -39,11 +39,12 @@ const NAV = [
   { to: '/contacts', label: 'Contacts', icon: Users },
   { to: '/catalogue', label: 'Catalogue', icon: Package },
   { to: '/validations', label: 'Validations', icon: ShieldCheck, badge: true },
+  { to: '/assistant', label: 'Assistant', icon: Sparkles, ai: true },
 ];
 
 function RedirectDossier() { const { id } = useParams(); return <Navigate to={`/dossier/${id}`} replace />; }
 
-function Sidebar({ pending, auth, open, setOpen }) {
+function Sidebar({ pending, auth, open, setOpen, ai }) {
   const loc = useLocation();
   useEffect(() => { setOpen(false); }, [loc.pathname]);
   return (
@@ -58,7 +59,7 @@ function Sidebar({ pending, auth, open, setOpen }) {
         <Search size={14} /> Rechercher <kbd className="ml-auto text-[10.5px] bg-black/20 rounded px-1.5 py-0.5 text-white">⌘K</kbd>
       </button>
       <nav className="px-3 flex flex-col gap-0.5">
-        {NAV.map((n) => (
+        {NAV.filter((n) => !n.ai || ai === true).map((n) => (
           <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => cn('flex items-center gap-2.5 h-9 px-3 rounded-lg text-[13.5px] font-medium transition-colors', isActive ? 'bg-black/20 text-white' : 'hover:bg-black/20/60 hover:text-white')}>
             {({ isActive }) => (<>
               <n.icon size={16} className={isActive ? 'text-white' : 'text-white/70'} />
@@ -216,6 +217,7 @@ function useOnline() {
 function Shell({ auth }) {
   const online = useOnline();
   const [pending, setPending] = useState(0);
+  const [ai, setAi] = useState(null);
   const loc = useLocation();
   const [navOpen, setNavOpen] = useState(false);
   useResponsiveTables();
@@ -223,9 +225,10 @@ function Shell({ auth }) {
     const f = () => get('/dashboard').then((d) => setPending(d.pendingOutbox + d.pendingPrices)).catch(() => {});
     f(); const t = setInterval(f, 20000); return () => clearInterval(t);
   }, [loc.pathname]);
+  useEffect(() => { get('/agent/status').then((d) => setAi(!!d.ready)).catch(() => setAi(false)); }, [loc.pathname === '/parametres']);
   return (
     <div className="h-full flex">
-      <Sidebar pending={pending} auth={auth} open={navOpen} setOpen={setNavOpen} />
+      <Sidebar pending={pending} auth={auth} open={navOpen} setOpen={setNavOpen} ai={ai} />
       <main className="flex-1 min-w-0 h-full overflow-auto scroll-thin pb-[env(safe-area-inset-bottom)]">
         {!online && <div className="sticky top-0 z-50 bg-amber-100 text-amber-900 text-[12.5px] text-center py-1.5 px-3 border-b border-amber-200">Hors ligne — consultation des données déjà ouvertes. Les modifications sont désactivées.</div>}
         <div className="md:hidden sticky top-0 z-40 flex items-center gap-3 px-3 bg-stone-900 text-white" style={{ paddingTop: 'env(safe-area-inset-top)', height: 'calc(56px + env(safe-area-inset-top))' }}>
@@ -253,12 +256,14 @@ function Shell({ auth }) {
           <Route path="/catalogue" element={<Catalog />} />
           <Route path="/devis" element={<Quotes />} />
           <Route path="/devis/:id" element={<QuoteEditor />} />
-          <Route path="/chat" element={<Navigate to="/" replace />} />
+          <Route path="/chat" element={<Navigate to="/assistant" replace />} />
+          <Route path="/assistant" element={ai === false ? <Navigate to="/" replace /> : <Chat />} />
           <Route path="/validations" element={<Validations />} />
           <Route path="/parametres" element={<Settings />} />
         </Routes>
         </Suspense>
       </main>
+      {ai === true && loc.pathname !== '/assistant' && <Link to="/assistant" aria-label="Assistant" className="fixed bottom-[76px] right-4 z-40 grid h-12 w-12 place-items-center rounded-full bg-accent text-white shadow-lg active:scale-95 md:bottom-6 md:right-6"><Mic size={21} /></Link>}
       <Palette />
       <PdfViewer />
     </div>
