@@ -42,7 +42,7 @@ export default function Stock() {
   return (
     <div className="pb-10">
       <PageHeader title="Stock" subtitle="Pièces du camion et du dépôt : les sorties se font toutes seules à l’émission des factures."
-        actions={<><Btn icon={ArrowDownToLine} onClick={importAfdb} disabled={busy}>Reprendre l’historique (achats AFDB, ventes et factures Tiime)</Btn><Btn icon={PackagePlus} variant="primary" onClick={() => { const it = data.rows.find((r) => r.track_stock); if (it) setMv({ item: it, kind: 'entree', qty: '', unit_cost: '', supplier_id: it.supplier_id || '', note: '' }); }}>Réception de matériel</Btn></>} />
+        actions={<><Btn icon={ArrowDownToLine} onClick={() => { window.location.href = '/api/stock/export.xlsx'; }}>Exporter Excel</Btn><Btn icon={ArrowDownToLine} onClick={importAfdb} disabled={busy}>Reprendre l’historique (achats AFDB, ventes et factures Tiime)</Btn><Btn icon={PackagePlus} variant="primary" onClick={() => { const it = data.rows.find((r) => r.track_stock); if (it) setMv({ item: it, kind: 'entree', qty: '', unit_cost: '', supplier_id: it.supplier_id || '', note: '' }); }}>Réception de matériel</Btn></>} />
       <div className="px-8 space-y-5">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Card className="p-4"><div className="text-[12px] text-stone-500">Valeur du stock (prix d’achat)</div><div className="text-xl font-semibold num">{money(t.valuation)}</div></Card>

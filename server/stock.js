@@ -164,6 +164,21 @@ export function mountStock(app, { log, outbox }) {
     });
   });
 
+  app.get('/api/stock/export.xlsx', async (_req, res) => {
+    const { default: ExcelJS } = await import('exceljs');
+    const rows = list(false);
+    const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet('Stock');
+    ws.columns = [['Catégorie', 18, 'category'], ['Réf. fournisseur', 16, 'supplier_ref'], ['Désignation', 46, 'label'], ['Marque', 14, 'brand'], ['Emplacement', 14, 'stock_location'], ['Unité', 8, 'unit'], ['Quantité', 10, 'stock_qty'], ['Réservé', 10, 'reserved'], ['Seuil mini', 10, 'stock_min'], ['Cible', 10, 'stock_target'], ['Prix d’achat HT', 14, 'cost_material'], ['Valeur', 12, null], ['État', 10, 'status'], ['Fournisseur', 22, 'supplier_name']].map(([header, width, key]) => ({ header, width, key: key || undefined }));
+    rows.forEach((r, i) => { const row = ws.addRow({ ...r }); row.getCell(12).value = { formula: `MAX(0,G${i + 2})*K${i + 2}`, result: r.value }; });
+    const n = rows.length + 1;
+    ws.addRow({}); const tot = ws.addRow({ label: 'TOTAL' }); tot.getCell(12).value = { formula: `SUM(L2:L${n})` }; tot.font = { bold: true };
+    ws.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } }; ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF6D1A' } };
+    ws.getColumn(11).numFmt = '#,##0.00 €'; ws.getColumn(12).numFmt = '#,##0.00 €'; ws.views = [{ state: 'frozen', ySplit: 1 }]; ws.autoFilter = { from: 'A1', to: `N${n}` };
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="stock-samlock-${new Date().toISOString().slice(0, 10)}.xlsx"`);
+    await wb.xlsx.write(res); res.end();
+  });
+
   app.put('/api/stock/items/:id', (req, res) => {
     const it = db.prepare('SELECT * FROM catalog_items WHERE id=?').get(req.params.id); if (!it) return res.status(404).json({ error: 'Introuvable' });
     const b = req.body; const m = (k, d) => (b[k] === undefined ? d : num(b[k]) || 0);
