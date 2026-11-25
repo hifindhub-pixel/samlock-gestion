@@ -41,7 +41,7 @@ export default function Social() {
   const toast = useToast();
   if (!data || !ch) return null;
   const eligible = ch.filter((c) => c.photos > 0);
-  const create = async (id, network, kind) => { try { await post(`/dossier/${id}/social/draft`, { network, kind }); await reload(); toast('Brouillon créé'); } catch (e) { toast(e.message, 'err'); } };
+  const create = async (id, network, kind) => { try { await post(`/interventions/${id}/social/draft`, { network, kind }); await reload(); toast('Brouillon créé'); } catch (e) { toast(e.message, 'err'); } };
   return (
     <div>
       <PageHeader title="Réseaux sociaux" subtitle="Des brouillons prêts à publier, créés depuis les photos d’intervention autorisées par le client." />

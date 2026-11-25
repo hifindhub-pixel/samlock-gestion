@@ -33,7 +33,7 @@ function NewInvoice({ onClose }) {
     try {
       const contact = ex || await post('/contacts', { ...c, kind: 'client' });
       const p = await post('/projects', { contact_id: contact.id, title: ls[0].label.slice(0, 80), address: site.address || contact.address || '', city: site.city || contact.city || '', stage: 'intervention_terminee' });
-      const inv = await post(`/dossier/${p.id}/direct-invoice`, { lines: ls, claim_ref: claim, intervention_date: date || null });
+      const inv = await post(`/interventions/${p.id}/direct-invoice`, { lines: ls, claim_ref: claim, intervention_date: date || null });
       toast('Facture créée en brouillon'); onClose(); nav(`/dossier/${p.id}?tab=fact`);
       return inv;
     } catch (e) { toast(e.message, 'err'); } finally { setBusy(false); }
