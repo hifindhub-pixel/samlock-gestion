@@ -174,10 +174,24 @@ export function mountStock(app, { log, outbox }) {
     ws.addRow({}); const tot = ws.addRow({ label: 'TOTAL' }); tot.getCell(12).value = { formula: `SUM(L2:L${n})` }; tot.font = { bold: true };
     ws.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } }; ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF6D1A' } };
     ws.getColumn(11).numFmt = '#,##0.00 €'; ws.getColumn(12).numFmt = '#,##0.00 €'; ws.views = [{ state: 'frozen', ySplit: 1 }]; ws.autoFilter = { from: 'A1', to: `N${n}` };
+    const wb2 = wb.addWorksheet('Bylk (factures supprimées)');
+    wb2.columns = [['Réf. fournisseur', 16], ['Désignation', 46], ['Quantité', 10], ['Facture supprimée', 18], ['Client', 24], ['Date', 12], ['Valeur (prix d’achat)', 18]].map(([header, width]) => ({ header, width }));
+    for (const r of bylkRows()) wb2.addRow([r.ref, r.label, r.qty, r.invoice_number, r.client, String(r.created_at).slice(0, 10), r.value]);
+    wb2.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } }; wb2.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF6D1A' } };
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="stock-samlock-${new Date().toISOString().slice(0, 10)}.xlsx"`);
     await wb.xlsx.write(res); res.end();
   });
+
+  /* Bylk : stock des factures supprimées */
+  const bylkRows = () => db.prepare(`SELECT b.*, ci.label, ci.supplier_ref AS ref, ci.unit, ci.cost_material FROM stock_bylk b JOIN catalog_items ci ON ci.id=b.item_id ORDER BY b.id DESC`).all().map((r) => ({ ...r, value: round2(r.qty * (r.cost_material || 0)) }));
+  app.get('/api/stock/bylk', (_req, res) => { const rows = bylkRows(); res.json({ rows, totals: { lines: rows.length, qty: round2(rows.reduce((a, r) => a + r.qty, 0)), value: round2(rows.reduce((a, r) => a + r.value, 0)) } }); });
+  app.post('/api/stock/bylk/:id/restore', (req, res) => {
+    const b = db.prepare('SELECT * FROM stock_bylk WHERE id=?').get(req.params.id); if (!b) return res.status(404).json({ error: 'Introuvable' });
+    db.transaction(() => { applyMove({ item_id: b.item_id, kind: 'retour', qty: b.qty, note: `Remis en stock depuis Bylk (facture ${b.invoice_number || ''} supprimée)` }); db.prepare('DELETE FROM stock_bylk WHERE id=?').run(b.id); })();
+    res.json({ ok: true });
+  });
+  app.delete('/api/stock/bylk/:id', (req, res) => { db.prepare('DELETE FROM stock_bylk WHERE id=?').run(req.params.id); res.json({ ok: true }); });
 
   app.put('/api/stock/items/:id', (req, res) => {
     const it = db.prepare('SELECT * FROM catalog_items WHERE id=?').get(req.params.id); if (!it) return res.status(404).json({ error: 'Introuvable' });

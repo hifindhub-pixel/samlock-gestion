@@ -1,11 +1,31 @@
 import { useMemo, useState } from 'react';
 import { ArrowDownToLine, Boxes, History, Mail, PackagePlus, TriangleAlert } from 'lucide-react';
-import { get, post, put } from '../lib/api.js';
+import { api, get, post, put } from '../lib/api.js';
 import { Badge, Btn, Card, Chips, Empty, Field, Input, Modal, NumInput, PageHeader, SearchBox, Select, Textarea, matches, useFetch, useToast, cn } from '../lib/ui.jsx';
 import { money, dateFr, num } from '../lib/format.js';
 
 const ST = { ok: ['OK', 'bg-emerald-50 text-emerald-700'], bas: ['Stock bas', 'bg-amber-50 text-amber-700'], rupture: ['Rupture', 'bg-rose-50 text-rose-700'] };
 const KIND_SIGN = { entree: '+', retour: '+', sortie: '−', perte: '−' };
+
+
+/** Rubrique « Bylk » : stock sorti par des factures supprimées (non remis en stock). */
+function Bylk() {
+  const toast = useToast(); const { data, reload } = useFetch(() => get('/stock/bylk'));
+  if (!data || data.rows.length === 0) return null;
+  const restore = async (r) => { if (!window.confirm(`Remettre ${num(r.qty)} × « ${r.label} » dans le stock ?`)) return; try { await post(`/stock/bylk/${r.id}/restore`, {}); toast('Remis en stock'); reload(); window.location.reload(); } catch (e) { toast(e.message, 'err'); } };
+  const drop = async (r) => { if (!window.confirm('Retirer cette ligne de Bylk sans remettre en stock ?')) return; try { await api(`/stock/bylk/${r.id}`, { method: 'DELETE' }); reload(); } catch (e) { toast(e.message, 'err'); } };
+  return (
+    <Card className="overflow-hidden">
+      <div className="px-5 py-3.5 border-b border-line flex items-center gap-3"><h2 className="font-semibold">Bylk</h2><span className="text-[12.5px] text-stone-500">Stock sorti par des factures supprimées · {num(data.totals.qty)} pièce(s) · {money(data.totals.value)} au prix d’achat</span></div>
+      <table className="w-full text-[13.5px]">
+        <thead><tr className="text-left text-[11.5px] text-stone-400 border-b border-line"><th className="px-5 py-2">Article</th><th className="text-right">Qté</th><th>Facture supprimée</th><th>Client</th><th>Date</th><th /></tr></thead>
+        <tbody>{data.rows.map((r) => (
+          <tr key={r.id} className="border-b border-line last:border-0"><td className="px-5 py-2.5"><div className="font-medium">{r.label}</div><div className="text-[12px] text-stone-400">{r.ref}</div></td><td className="text-right num">{num(r.qty)}</td><td>{r.invoice_number}</td><td>{r.client}</td><td>{dateFr(String(r.created_at).slice(0, 10))}</td>
+            <td className="pr-5 text-right whitespace-nowrap"><button className="text-accent hover:underline text-[12.5px]" onClick={() => restore(r)}>Remettre en stock</button><button className="ml-3 text-stone-400 hover:text-rose-600 text-[12.5px]" onClick={() => drop(r)}>Retirer</button></td></tr>))}</tbody>
+      </table>
+    </Card>
+  );
+}
 
 export default function Stock() {
   const toast = useToast();
@@ -97,6 +117,7 @@ export default function Stock() {
             </table>
           </Card>
         )}
+        <Bylk />
       </div>
 
       <Modal open={!!mv} onClose={() => setMv(null)} title={mv ? `Mouvement de stock — ${mv.item.label}` : ''} footer={<><Btn onClick={() => setMv(null)}>Annuler</Btn><Btn variant="primary" loading={busy} disabled={mv?.qty === '' || mv?.qty == null} onClick={submitMove}>Enregistrer</Btn></>}>

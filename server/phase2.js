@@ -378,9 +378,11 @@ export function mountPhase2(app, { loadQuote, log, setStage, token, APP_URL, upl
     const ids = [inv.id, ...db.prepare('SELECT id FROM invoices WHERE credit_of=?').all(inv.id).map((r) => r.id)];
     db.transaction(() => {
       for (const id of ids) {
-        for (const m of db.prepare("SELECT * FROM stock_moves WHERE ref_type='invoice' AND ref_id=?").all(id)) {
-          applyMove({ item_id: m.item_id, kind: m.kind === 'sortie' ? 'retour' : 'sortie', qty: Math.abs(m.qty), ref_type: 'invoice_del', ref_id: id, note: `Suppression de la facture ${inv.number || 'brouillon'}` });
-        }
+        // Le stock n'est pas remis : la quantité nette sortie par la facture (sorties − retours d'avoirs) passe dans la rubrique « Bylk ».
+        const net = {};
+        for (const m of db.prepare("SELECT item_id, kind, qty FROM stock_moves WHERE ref_type='invoice' AND ref_id=?").all(id)) net[m.item_id] = (net[m.item_id] || 0) + (m.kind === 'sortie' ? Math.abs(m.qty) : -Math.abs(m.qty));
+        const cname = db.prepare('SELECT COALESCE(NULLIF(c.company,\'\'), c.name) n FROM projects p JOIN contacts c ON c.id=p.contact_id WHERE p.id=?').get(inv.project_id)?.n || null;
+        for (const [item_id, q] of Object.entries(net)) if (q > 0) db.prepare('INSERT INTO stock_bylk(item_id,qty,invoice_number,client) VALUES(?,?,?,?)').run(Number(item_id), round2(q), inv.number || 'brouillon', cname);
       }
       for (const id of ids.slice().reverse()) db.prepare('DELETE FROM invoices WHERE id=?').run(id);
     })();

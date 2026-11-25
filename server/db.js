@@ -220,6 +220,14 @@ addCol('quotes', 'imported', 'INTEGER NOT NULL DEFAULT 0');
 addCol('contacts', 'client_type', "TEXT NOT NULL DEFAULT 'particulier'");
 for (const [col, def] of [['done_at', 'TEXT'], ['paid_at', 'TEXT'], ['paid_amount', 'REAL'], ['paid_method', 'TEXT'], ['sub_invoice_ref', 'TEXT'], ['done_note', 'TEXT']]) addCol('assignments', col, def);
 db.exec(`
+-- « Bylk » : stock sorti par des factures ensuite supprimées (non remis en stock, suivi à part)
+CREATE TABLE IF NOT EXISTS stock_bylk (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  item_id INTEGER NOT NULL REFERENCES catalog_items(id) ON DELETE CASCADE,
+  qty REAL NOT NULL,
+  invoice_number TEXT, client TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 CREATE TABLE IF NOT EXISTS stock_moves (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   item_id INTEGER NOT NULL REFERENCES catalog_items(id) ON DELETE CASCADE,
