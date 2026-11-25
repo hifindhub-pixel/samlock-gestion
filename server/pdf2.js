@@ -98,7 +98,7 @@ export function renderInvoicePdf(inv, stream) {
   const { doc, S, accent, L, W } = start(stream, avoir ? 'Avoir' : 'Facture', inv.number, meta, !!inv.number);
   const c = inv.contact; let y = 134;
   const sid = c.siret ? `${String(c.siret).replace(/\D/g, '').length === 9 ? 'SIREN' : 'SIRET'} ${c.siret}` : null;
-  y += boxPair(doc, L, W, y, 'CLIENT', [c.company || c.name, c.company ? c.name : null, c.address, [c.postal, c.city].filter(Boolean).join(' '), sid], 'LIEU D’INTERVENTION', [inv.project.title, inv.project.address, inv.project.city].filter(Boolean), accent);
+  y += boxPair(doc, L, W, y, 'CLIENT', [c.company || c.name, c.company ? c.name : null, c.address, [c.postal, c.city].filter(Boolean).join(' '), sid], 'LIEU D’INTERVENTION', [inv.project.address, inv.project.city].filter(Boolean), accent);
   doc.font('Nunito-Bold').fontSize(11).fillColor('#111827').text(inv.title, L, y, { width: W }); y = doc.y + 3;
   if (avoir) {
     doc.font('Nunito').fontSize(9).fillColor('#4b5563').text(`Avoir sur la facture ${inv.credit_src?.number || ''}${inv.credit_src?.issued_at ? ' du ' + dateFr(inv.credit_src.issued_at) : ''}. Motif : ${inv.reason || ''}`, L, y, { width: W }); y = doc.y + 3;

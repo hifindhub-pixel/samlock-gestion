@@ -16,8 +16,8 @@ export function renderQuotePdf(q, stream) {
   const PAD = 0;
   let y = 134;
   const cl = [q.contact.company || q.contact.name, q.contact.company ? q.contact.name : null, q.contact.address, [q.contact.postal, q.contact.city].filter(Boolean).join(' '), q.contact.phone];
-  const where = [q.project.title, q.project.address, q.project.city].filter(Boolean);
-  if (where.length === 1) where.push('Adresse identique à celle du client');
+  const where = [q.project.address, q.project.city].filter(Boolean);
+  if (!where.length) where.push('Adresse identique à celle du client');
   y += boxPair(doc, L, W, y, 'CLIENT', cl, 'LIEU D’INTERVENTION', where, accent);
 
   if (q.title) { doc.font('Nunito-Bold').fontSize(11).fillColor('#111827').text(q.title, L, y, { width: W }); y = doc.y + 4; }
@@ -44,10 +44,12 @@ export function renderQuotePdf(q, stream) {
     const lines = q.lines.filter((l) => l.section_id === s.id);
     if (!lines.length) continue;
     ensure(40);
-    doc.rect(L, y - 2, W, 18).fill('#f3f4f6');
-    doc.fillColor('#111827').font('Nunito-Bold').fontSize(9).text(s.title.toUpperCase(), L + 10, y + 3, { width: W - 130 });
-    doc.text(price2(perSection[s.id]?.total), cols.total, y + 3, { width: 70, align: 'right' });
-    y += 22;
+    if (!/^\s*poste\s*\d*\s*$/i.test(s.title || '')) { // titres automatiques « Poste 1, 2… » masqués
+      doc.rect(L, y - 2, W, 18).fill('#f3f4f6');
+      doc.fillColor('#111827').font('Nunito-Bold').fontSize(9).text(s.title.toUpperCase(), L + 10, y + 3, { width: W - 130 });
+      doc.text(price2(perSection[s.id]?.total), cols.total, y + 3, { width: 70, align: 'right' });
+      y += 22;
+    }
     for (const l of lines) {
       const c = computeLine(l);
       doc.font('Nunito').fontSize(9);
@@ -110,9 +112,10 @@ export function renderQuotePdf(q, stream) {
   doc.font('Nunito-Bold').fontSize(8).fillColor('#111827').text('Bon pour accord', L + W - 220, cy + 8);
   doc.font('Nunito').fontSize(7.5).fillColor('#6b7280').text('Date et signature', L + W - 220, cy + 20, { width: 210 });
   const sigRow = db.prepare("SELECT * FROM signatures WHERE doc_type='quote' AND doc_id=? AND status='signed'").get(q.id);
-  if (sigRow?.signer_name) {
+  const signerName = sigRow?.signer_name || (q.status === 'signe' ? (q.contact.company ? q.contact.name : q.contact.name) : '');
+  if (signerName) {
     // Signature « manuscrite » : le nom du signataire en écriture cursive, avec la date de signature
-    doc.fillColor('#1e3a8a').font('Script').fontSize(21).text(sigRow.signer_name, L + W - 220, cy + 30, { width: 210, height: 30, lineBreak: false, ellipsis: true });
+    doc.fillColor('#1e3a8a').font('Script').fontSize(21).text(signerName, L + W - 220, cy + 30, { width: 210, height: 30, lineBreak: false, ellipsis: true });
     doc.moveTo(L + W - 218, cy + 58).lineTo(L + W - 30, cy + 58).lineWidth(0.5).strokeColor('#9ca3af').stroke();
   }
   if (q.status === 'signe') doc.fillColor('#15803d').font('Nunito-Bold').fontSize(8).text(`Signé électroniquement le ${dateFr(q.signed_at)}`, L + W - 220, cy + 68, { width: 210 });

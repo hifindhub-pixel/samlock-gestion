@@ -1,6 +1,7 @@
 import express from 'express';
 import compression from 'compression';
 import multer from 'multer';
+import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -36,7 +37,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 app.use(compression());
 const PORT = process.env.PORT || 3001;
-const APP_URL = process.env.APP_URL || `http://localhost:${process.env.NODE_ENV === 'production' ? PORT : 5173}`;
+// Adresse publique des liens envoyés aux clients (signature, paiement…). Sans APP_URL, on utilise l'adresse du PC sur le réseau local
+// (utilisable depuis un téléphone connecté au même Wi-Fi). En production, définir APP_URL=https://votre-domaine.
+function lanIp() { for (const list of Object.values(os.networkInterfaces())) for (const n of list || []) if (n.family === 'IPv4' && !n.internal && !n.address.startsWith('169.254.')) return n.address; return null; }
+const APP_URL = process.env.APP_URL || (process.env.NODE_ENV === 'production' && lanIp() ? `http://${lanIp()}:${PORT}` : `http://localhost:${process.env.NODE_ENV === 'production' ? PORT : 5173}`);
 const upload = multer({ dest: path.join(DATA_DIR, 'uploads'), limits: { fileSize: 15 * 1024 * 1024 } });
 const token = () => crypto.randomBytes(16).toString('hex');
 let hooks = {};
@@ -743,4 +747,4 @@ app.use((err, req, res, _next) => {
   if (/UNIQUE constraint failed/.test(m)) return res.status(409).json({ error: 'Cet élément existe déjà.' });
   console.error(req.method, req.originalUrl, err); res.status(500).json({ error: 'Erreur interne. Réessayez ou contactez le support.' });
 });
-app.listen(PORT, () => console.log(`SAMLOCK API sur http://localhost:${PORT}`));
+app.listen(PORT, () => { console.log(`SAMLOCK API sur http://localhost:${PORT}`); console.log(`Liens envoyés aux clients : ${APP_URL}`); });
