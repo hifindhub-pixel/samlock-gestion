@@ -13,7 +13,7 @@ const TABS = [['apercu', 'Vue d\'ensemble', HardHat], ['photos', 'Photos & docum
 export default function InterventionDetail() {
   const { id } = useParams(); const toast = useToast();
   const { data: d, reload } = useFetch(() => get(`/interventions/${id}`), [id]);
-  const [tab, setTab] = useState('apercu');
+  const [tab, setTab] = useState(new URLSearchParams(window.location.search).get('tab') || 'apercu');
   if (!d) return null;
   const { project: p, contact: c, planned: pl } = d;
   const act = async (fn, ok) => { try { await fn(); await reload(); ok && toast(ok); } catch (e) { toast(e.message, 'err'); } };

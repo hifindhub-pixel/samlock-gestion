@@ -7,7 +7,7 @@ import { InvBadge, KIND_INV } from './Invoices.jsx';
 
 const METHODS = [['cb', 'Carte bancaire'], ['especes', 'Espèces'], ['cheque', 'Chèque'], ['virement', 'Virement'], ['autre', 'Autre']];
 const today = () => new Date().toISOString().slice(0, 10);
-const blankLine = () => ({ label: '', qty: 1, unit: 'u', unit_price: 0, item_id: null });
+export const blankLine = () => ({ label: '', qty: 1, unit: 'u', unit_price: 0, item_id: null });
 
 /** Badge « IK » d’une facture : kilomètres et indemnité calculés en temps réel. */
 function IkBadge({ id, status }) {
@@ -18,7 +18,7 @@ function IkBadge({ id, status }) {
 }
 
 /** Éditeur de lignes de facture : catalogue ou saisie libre. */
-function LinesEditor({ lines, setLines, catalog }) {
+export function LinesEditor({ lines, setLines, catalog }) {
   const upd = (k, patch) => setLines(lines.map((l, i) => (i === k ? { ...l, ...patch } : l)));
   const pick = (k, id) => { const it = catalog.find((c) => c.id === Number(id)); if (it) upd(k, { item_id: it.id, label: it.label, unit: it.unit, unit_price: it.price_ht }); };
   const ht = lines.reduce((a, l) => a + (Number(l.qty) || 0) * (Number(l.unit_price) || 0), 0);
