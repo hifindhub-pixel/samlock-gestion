@@ -70,6 +70,7 @@ export function mountHistory(app) {
   // Reprise automatique des factures Tiime : au premier lancement, puis à chaque nouvelle version des données
   // (idempotent : les factures déjà présentes sont conservées, les fiches « à compléter » sont remplacées).
   const version = `v${TIIME_INVOICES.length}-${TIIME_INVOICES.reduce((a, d) => a + (d[7]?.length || 0), 0)}`;
+  db.prepare("UPDATE settings SET value='1 000 €' WHERE key='company_capital' AND value='5 000 €'").run(); // capital figurant sur les factures Tiime
   const seen = db.prepare("SELECT value FROM settings WHERE key='tiime_invoices_imported'").get();
   if ((!seen || !String(seen.value).includes(version)) && !process.env.SKIP_AFDB) {
     try { const r = importTiimeInvoices(); db.prepare("INSERT OR REPLACE INTO settings(key,value) VALUES('tiime_invoices_imported',?)").run(`${new Date().toISOString()} ${version}`); console.log('Factures Tiime reprises :', JSON.stringify(r)); }

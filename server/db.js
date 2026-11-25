@@ -259,7 +259,7 @@ export const DEFAULT_SETTINGS = {
   company_iban: 'FR7610057192390002073440314',
   company_bic: 'CMCIFRPPXXX',
   company_legal_form: 'SASU',
-  company_capital: '5 000 €',
+  company_capital: '1 000 €',
   payment_days: '0',
   company_name: 'SAMLOCK',
   company_address: '48 rue Claude Balbastre, 34070 Montpellier',

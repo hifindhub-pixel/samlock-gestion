@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { brandHeader, idLine, setupFonts } from './brand.js';
+import { brandHeader, idLine, setupFonts, logoFile } from './brand.js';
 import PDFDocument from 'pdfkit';
 import { db, getSettings, round2, DATA_DIR } from './db.js';
 import { buildFacturX, FX_XMP } from './facturx.js';
@@ -91,78 +91,106 @@ export function totalsBlock(doc, L, W, y, rows, ttcLabel, ttc, accent) {
 }
 
 /* ------------------------------------------------------------------ Facture */
-const METHODS = { cb: 'carte bancaire', carte: 'carte bancaire', especes: 'espèces', espèces: 'espèces', cheque: 'chèque', chèque: 'chèque', virement: 'virement' };
+/**
+ * Facture / avoir : mise en page « modèle Tiime » validée par SAMLOCK
+ * (logo, bloc émetteur + numéro à gauche, client à droite, tableau orange arrondi, totaux orange, IBAN, mentions, pied de page centré).
+ */
+const INK = '#3f4f73', ORANGE = '#FF6D1A';
+const amt = (n) => (Math.round((Number(n) || 0) * 100) / 100).toFixed(2).replace('.', ',');
+const shownNumber = (n) => (n ? String(n).replace(/^TIIME-/, '').replace(/^(AV-)?0+(?=\d)/, '$1') : '');
 export function renderInvoicePdf(inv, stream) {
-  const avoir = inv.kind === 'avoir';
-  const meta = [['Date d’émission', dateFr(inv.issued_at || inv.created_at)], ['Date d’intervention', inv.intervention_date ? dateFr(inv.intervention_date) : ''], [avoir ? '' : 'Échéance', avoir ? '' : (inv.status === 'payee' ? 'Acquittée' : (inv.due_at ? dateFr(inv.due_at) : 'À réception'))]];
-  const { doc, S, accent, L, W } = start(stream, avoir ? 'Avoir' : 'Facture', inv.number, meta, !!inv.number);
-  const c = inv.contact; let y = 134;
-  const sid = c.siret ? `${String(c.siret).replace(/\D/g, '').length === 9 ? 'SIREN' : 'SIRET'} ${c.siret}` : null;
-  y += boxPair(doc, L, W, y, 'CLIENT', [c.company || c.name, c.company ? c.name : null, c.address, [c.postal, c.city].filter(Boolean).join(' '), sid], 'LIEU D’INTERVENTION', [inv.project.address, inv.project.city].filter(Boolean), accent);
-  doc.font('Nunito-Bold').fontSize(11).fillColor('#111827').text(inv.title, L, y, { width: W }); y = doc.y + 3;
-  if (avoir) {
-    doc.font('Nunito').fontSize(9).fillColor('#4b5563').text(`Avoir sur la facture ${inv.credit_src?.number || ''}${inv.credit_src?.issued_at ? ' du ' + dateFr(inv.credit_src.issued_at) : ''}. Motif : ${inv.reason || ''}`, L, y, { width: W }); y = doc.y + 3;
+  const S = getSettings(); const avoir = inv.kind === 'avoir';
+  const doc = new PDFDocument({ size: 'A4', margin: 0, bufferPages: true, ...(inv.number ? { subset: 'PDF/A-3b', pdfVersion: '1.7' } : {}), info: { Title: `${avoir ? 'Avoir' : 'Facture'} ${shownNumber(inv.number)}`, Author: S.company_name } });
+  setupFonts(doc); doc.pipe(stream);
+  const L = 50, R = 547, W = R - L;
+  const c = inv.contact;
+  // --- Logo
+  try { doc.image(logoFile('horizontal-dark'), L - 10, 22, { width: 253 }); } catch { doc.fillColor(ORANGE).font('Serif-Bold').fontSize(26).text(S.company_name, L, 36); }
+  // --- Émetteur + numéro + date
+  const [street, ...rest] = String(S.company_address || '').split(',').map((x) => x.trim());
+  let y = 86; doc.font('Nunito').fontSize(8.6).fillColor(INK);
+  for (const t of [`${S.company_legal_form || ''} ${S.company_name}`.trim(), street, rest.join(', '), String(S.company_phone || '').replace(/\s/g, ''), S.company_email]) { if (t) { doc.text(t, L, y, { lineBreak: false }); y += 12.2; } }
+  doc.font('Nunito').fontSize(8.6).text(inv.number ? `${avoir ? 'Avoir' : 'Facture'} N° ${shownNumber(inv.number)}` : `${avoir ? 'Avoir' : 'Facture'} (brouillon)`, L + 2, y, { lineBreak: false }); y += 12.5;
+  doc.text(`Date d'émission : ${dateFr(inv.issued_at || inv.created_at)}`, L + 2, y, { lineBreak: false }); y += 12.5;
+  if (!avoir && inv.status !== 'payee' && inv.due_at) { doc.text(`Échéance : ${dateFr(inv.due_at)}`, L + 2, y, { lineBreak: false }); y += 12.5; }
+  if (inv.claim_ref) { doc.text(`Référence dossier : ${inv.claim_ref}`, L + 2, y, { lineBreak: false }); y += 12.5; }
+  // --- Client
+  let cy = 88;
+  doc.font('Nunito-Bold').fontSize(8.6).fillColor(INK).text(c.company || c.name, 322, cy, { width: R - 322 }); cy = doc.y + 2;
+  doc.font('Nunito').fontSize(8.6);
+  for (const t of [c.company ? c.name : null, c.address, [c.postal, c.city].filter(Boolean).join(' '), 'France', c.siret ? `${String(c.siret).replace(/\D/g, '').length === 9 ? 'SIREN' : 'SIRET'} ${c.siret}` : null]) { if (t) { doc.text(t, 322, cy, { width: R - 322 }); cy = doc.y + 0.5; } }
+  // --- Tampon « Payée »
+  if (!avoir && inv.status === 'payee') {
+    doc.save(); doc.rotate(-8, { origin: [440, 66] }); doc.roundedRect(392, 49, 96, 34, 8).lineWidth(2).strokeColor('#4ade80').stroke();
+    doc.font('Nunito-Bold').fontSize(15).fillColor('#4ade80').text('Payée', 392, 56, { width: 96, align: 'center', lineBreak: false }); doc.restore();
   }
-  if (inv.quotes?.length) {
-    const txt = inv.quotes.map((q) => `${q.kind === 'avenant' ? 'avenant' : 'devis'} n° ${q.number}${q.signed_at ? ` accepté le ${dateFr(q.signed_at)}` : ''}`).join(' · ');
-    doc.font('Nunito').fontSize(9).fillColor('#4b5563').text(`Facture relative au ${txt}`, L, y, { width: W }); y = doc.y + 3;
-  }
-  if (inv.claim_ref) { doc.font('Nunito').fontSize(9).fillColor('#4b5563').text(`Référence dossier / sinistre : ${inv.claim_ref}`, L, y, { width: W }); y = doc.y; }
-  y += 10;
-  const cx = tableCols(L, W);
+  // --- Tableau
+  const col = { b1: 347, b2: 396, b3: 439, b4: 484 };
+  let ty = Math.max(y, cy) + 22; if (ty < 202) ty = 202;
   const head = () => {
-    doc.rect(L, y, W, 22).fill(accent); doc.fillColor('#fff').font('Nunito-Bold').fontSize(8);
-    doc.text('Désignation', L + 10, y + 7); doc.text('Qté', cx.qty, y + 7, { width: 35, align: 'right' }); doc.text('Unité', cx.unit + 4, y + 7, { width: 30 });
-    doc.text('P.U. HT', cx.pu, y + 7, { width: 60, align: 'right' }); doc.text('TVA', cx.vat, y + 7, { width: 30, align: 'right' }); doc.text('Total HT', cx.total, y + 7, { width: 70, align: 'right' });
-    y += 28;
+    doc.roundedRect(L, ty, W, 29, 7).fill(ORANGE);
+    doc.strokeColor('#ffffff').lineWidth(0.8); for (const x of Object.values(col)) doc.moveTo(x, ty).lineTo(x, ty + 29).stroke();
+    doc.fillColor('#fff').font('Nunito-Bold').fontSize(7.6);
+    doc.text('Désignation', L + 8, ty + 11, { lineBreak: false });
+    doc.text('Quantité', col.b1, ty + 11, { width: col.b2 - col.b1, align: 'center', lineBreak: false });
+    doc.text('Prix\nunitaire', col.b2, ty + 5, { width: col.b3 - col.b2, align: 'center', lineGap: 0 });
+    doc.text('TVA', col.b3, ty + 11, { width: col.b4 - col.b3, align: 'center', lineBreak: false });
+    doc.text('Montant HT', col.b4, ty + 11, { width: R - col.b4, align: 'center', lineBreak: false });
+    ty += 29;
   };
   head();
-  let zebra = false;
   for (const l of inv.lines) {
-    const dw = cx.qty - L - 22;
-    doc.font('Nunito').fontSize(9); const h = doc.heightOfString(l.label, { width: dw });
-    if (y + h + 12 > doc.page.height - 70) { doc.addPage(); y = 50; head(); }
-    const neg = l.base_ht < 0;
-    if (zebra) doc.rect(L, y - 4, W, h + 10).fill('#fafafa');
-    zebra = !zebra;
-    doc.fillColor(neg ? '#6b7280' : '#111827').font(neg ? 'Nunito-Italic' : 'Nunito').fontSize(9).text(l.label, L + 10, y, { width: dw });
-    const ny = doc.y;
+    doc.font('Nunito').fontSize(8.6); const h = doc.heightOfString(l.label, { width: col.b1 - L - 20 });
+    if (ty + h + 30 > 740) { doc.addPage({ size: 'A4', margin: 0 }); ty = 50; head(); }
+    const top = ty + 11; const neg = l.base_ht < 0;
+    doc.fillColor(INK).font(neg ? 'Nunito-Italic' : 'Nunito').fontSize(8.6).text(l.label, L + 8, top, { width: col.b1 - L - 20 });
     const q = Number(l.qty); const showQ = !neg && q && !(q === 1 && (l.unit === 'u' || !l.unit) && l.unit_price == null);
-    if (showQ) doc.text(num(q), cx.qty, y, { width: 35, align: 'right' }).text(l.unit || 'u', cx.unit + 4, y, { width: 30 }).text(price2(l.unit_price ?? l.base_ht / (q || 1)), cx.pu, y, { width: 60, align: 'right' });
-    doc.text(`${num(l.vat)} %`, cx.vat, y, { width: 30, align: 'right' }).font(neg ? 'Nunito-Italic' : 'Nunito-Bold').text(price2(l.base_ht), cx.total, y, { width: 70, align: 'right' });
-    y = ny + 8; doc.moveTo(L, y - 4).lineTo(L + W, y - 4).lineWidth(0.4).strokeColor('#e5e7eb').stroke();
+    doc.font('Nunito').fontSize(8.6);
+    if (showQ || !neg) doc.text(amt(q || 1), col.b1, top, { width: col.b2 - col.b1 - 8, align: 'right', lineBreak: false }).text(amt(l.unit_price ?? l.base_ht / (q || 1)), col.b2, top, { width: col.b3 - col.b2 - 8, align: 'right', lineBreak: false });
+    doc.text(`${num(l.vat)}%`, col.b3, top, { width: col.b4 - col.b3, align: 'center', lineBreak: false });
+    doc.font(neg ? 'Nunito-Italic' : 'Nunito-Bold').text(amt(l.base_ht), col.b4, top, { width: R - col.b4 - 10, align: 'right', lineBreak: false });
+    ty = Math.max(doc.y, top + 10) + 12;
+    doc.moveTo(L, ty).lineTo(R, ty).lineWidth(0.5).strokeColor('#c7d0de').stroke();
   }
-  if (y > doc.page.height - 200) { doc.addPage(); y = 50; }
-  y += 10;
+  // --- Totaux
+  if (ty > 600) { doc.addPage({ size: 'A4', margin: 0 }); ty = 50; }
+  ty += 24;
   const byRate = {}; for (const l of inv.lines) byRate[l.vat] = (byRate[l.vat] || 0) + l.base_ht;
   const rates = Object.keys(byRate).sort();
-  const trows = [['Total HT', eur(inv.total_ht)]];
-  if (rates.length > 1) for (const r of rates) trows.push([`TVA ${num(r)} %`, eur(round2(byRate[r] * r / 100))]);
-  else trows.push([rates.length ? `TVA ${num(rates[0])} %` : 'Total TVA', eur(inv.total_tva)]);
-  y = totalsBlock(doc, L, W, y, trows, avoir ? 'Avoir TTC' : 'Total TTC', eur(inv.total_ttc), accent);
-  if (inv.kind === 'avoir') {
-    doc.roundedRect(L, y, W, 40, 4).lineWidth(0.8).strokeColor('#d1d5db').stroke();
-    doc.fillColor('#111827').font('Nunito').fontSize(9).text('Cet avoir sera déduit de vos prochaines factures ou remboursé par virement.', L + 10, y + 14, { width: W - 20 });
-    y += 54;
-  } else if (inv.status === 'payee') {
-    const m = METHODS[(inv.payment_method || '').toLowerCase()] || inv.payment_method || '';
-    doc.roundedRect(L, y, W, 44, 4).lineWidth(1).strokeColor('#15803d').stroke();
-    doc.fillColor('#15803d').font('Nunito-Bold').fontSize(11).text('FACTURE ACQUITTÉE', L + 12, y + 9);
-    doc.font('Nunito').fontSize(9).fillColor('#111827').text(`Réglée${inv.paid_at ? ` le ${dateFr(inv.paid_at)}` : ''}${m ? ` par ${m}` : ''}. Merci pour votre confiance.`, L + 12, y + 25, { width: W - 24 });
-    y += 58;
+  const trow = (label, value, strong) => {
+    doc.font('Nunito').fontSize(8.8).fillColor(ORANGE).text(label, 322, ty, { lineBreak: false });
+    if (strong) {
+      doc.font('Nunito-Bold').fontSize(8.8); const w = doc.widthOfString(value) + 18;
+      doc.roundedRect(R - w, ty - 6, w, 20, 9).fill('#FFE9DC'); doc.fillColor(INK).text(value, R - w, ty, { width: w - 9, align: 'right', lineBreak: false });
+    } else doc.fillColor(ORANGE).text(value, 322, ty, { width: R - 322 - 5, align: 'right', lineBreak: false });
+    ty += 22;
+  };
+  trow('Total HT', `${amt(inv.total_ht)}€`);
+  if (rates.length > 1) for (const r of rates) trow(`TVA ${num(r)}%`, `${amt(byRate[r] * r / 100)}€`);
+  else trow(rates.length ? `TVA ${num(rates[0])}%` : 'Total TVA', `${amt(inv.total_tva)}€`);
+  trow(avoir ? 'Avoir TTC' : 'Total TTC', `${amt(inv.total_ttc)}€`, true);
+  // --- Règlement + mentions
+  ty += 6; doc.moveTo(L, ty).lineTo(R, ty).lineWidth(0.5).strokeColor('#e5e7eb').stroke(); ty += 18;
+  doc.font('Nunito').fontSize(8.6).fillColor(INK);
+  if (!avoir) {
+    if ((S.company_iban || '').trim()) { doc.text(`IBAN : ${S.company_iban}`, L, ty, { lineBreak: false }); ty += 12; if (S.company_bic) { doc.text(`BIC : ${S.company_bic}`, L, ty, { lineBreak: false }); ty += 12; } ty += 6; }
+    doc.text("En cas de retard de paiement, une pénalité de 3 fois le taux d'intérêt légal sera appliquée, à laquelle s'ajoutera une indemnité forfaitaire pour frais de recouvrement de 40€.", L, ty, { width: W, characterSpacing: 0.15 }); ty = doc.y + 6;
+    if (inv.lines.some((l) => Number(l.vat) === 10)) { doc.fontSize(7.6).text('TVA à taux réduit (10 %) : travaux d’amélioration, de transformation ou d’entretien dans un local d’habitation achevé depuis plus de 2 ans, sur attestation du client.', L, ty, { width: W }); }
   } else {
-    const hasIban = !!(S.company_iban || '').trim();
-    doc.roundedRect(L, y, W, hasIban ? 62 : 48, 4).lineWidth(0.8).strokeColor('#d1d5db').stroke();
-    doc.fillColor('#6b7280').font('Nunito-Bold').fontSize(8).text('RÈGLEMENT', L + 10, y + 9);
-    const due = inv.due_at ? `avant le ${dateFr(inv.due_at)}` : 'à réception';
-    doc.fillColor('#111827').font('Nunito').fontSize(9).text(`Paiement ${due} — carte bancaire, espèces, chèque ou virement.\n${hasIban ? `IBAN ${S.company_iban}${S.company_bic ? `   ·   BIC ${S.company_bic}` : ''}\n` : ''}Référence à rappeler : ${inv.number || 'brouillon'}`, L + 10, y + 22);
-    y += hasIban ? 76 : 62;
-  }
-  if (inv.kind !== 'avoir') {
-    doc.font('Nunito').fontSize(7.5).fillColor('#6b7280').text(`Pénalités de retard : 3 fois le taux d'intérêt légal. Indemnité forfaitaire de recouvrement : 40 €. Pas d'escompte pour paiement anticipé.${inv.lines.some((l) => Number(l.vat) === 10) ? ' TVA à taux réduit (10 %) : travaux d’amélioration, de transformation ou d’entretien dans un local d’habitation achevé depuis plus de 2 ans, sur attestation du client.' : ''}`, L, y, { width: W });
+    doc.text(`Avoir sur la facture ${shownNumber(inv.credit_src?.number) || ''}${inv.reason ? ` — ${inv.reason}` : ''}. Il sera déduit de vos prochaines factures ou remboursé par virement.`, L, ty, { width: W });
   }
   if (inv.number) { doc.appendXML(FX_XMP()); doc.file(Buffer.from(buildFacturX(inv, S), 'utf-8'), { name: 'factur-x.xml', type: 'text/xml', description: 'Factur-X (EN 16931)', relationship: 'Alternative' }); }
-  footer(doc, S, L, W, inv.number || 'Facture brouillon');
+  // --- Pied de page centré
+  const rg = doc.bufferedPageRange();
+  const rcs = S.company_rcs || 'RCS MONTPELLIER', naf = S.company_naf || '4332B';
+  const cap = String(S.company_capital || '').replace(/\s*€\s*$/, '').replace(/\s*euros?\s*$/i, '');
+  for (let i = 0; i < rg.count; i++) {
+    doc.switchToPage(i); doc.font('Nunito').fontSize(8).fillColor(INK);
+    const lines = [`${S.company_legal_form || ''} au capital de ${cap} euros`.trim(), `SIREN ${String(S.company_siret || '').replace(/\D/g, '').slice(0, 9)} - ${rcs} - NAF ${naf}`, `TVA intracommunautaire : ${S.company_vat_number}`];
+    lines.forEach((t, k) => doc.text(t, 0, 768 + k * 15, { width: 595.92, align: 'center', lineBreak: false }));
+    doc.text(`Page ${i + 1}/${rg.count}`, 0, 818, { width: 595.92, align: 'center', lineBreak: false });
+  }
+  doc.end();
 }
 
 /* ------------------------------------------------------------------ Bon d’intervention */
