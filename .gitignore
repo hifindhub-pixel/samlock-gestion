@@ -3,3 +3,4 @@ web/node_modules/
 data/
 *.log
 .env
+web/dist/
