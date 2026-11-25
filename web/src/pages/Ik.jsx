@@ -47,7 +47,7 @@ export default function Ik() {
               <tbody>{data.rows.map((r) => (
                 <tr key={r.invoice_id} className="border-b border-line last:border-0">
                   <td className="p-3 whitespace-nowrap">{dateFr(r.issued_at)}</td>
-                  <td><Link className="text-accent font-medium hover:underline" to={`/interventions/${r.project_id}`}>{r.number}</Link></td>
+                  <td><Link className="text-accent font-medium hover:underline" to={`/dossier/${r.project_id}`}>{r.number}</Link></td>
                   <td><div className="font-medium">{r.client}</div><div className="text-[12px] text-stone-400 flex items-center gap-1"><MapPin size={11} />{r.destination || '—'}</div></td>
                   <td className="text-right num">{r.km_one_way != null ? num(r.km_one_way, 1) : '…'}</td>
                   <td className="text-right num">{r.km_total != null ? num(r.km_total, 1) : '…'}</td>

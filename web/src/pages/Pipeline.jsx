@@ -50,7 +50,7 @@ export default function Pipeline() {
                   </div>
                   <div className="flex-1 overflow-auto px-2 pb-2 space-y-2 scroll-thin">
                     {cols[s].map((p) => (
-                      <Link key={p.id} to={['devis_valide','intervention_en_cours','intervention_terminee'].includes(p.stage) ? `/interventions/${p.id}` : `/contacts/${p.contact_id}`} draggable onDragStart={() => setDrag(p.id)} onDragEnd={() => { setDrag(null); setOver(null); }}
+                      <Link key={p.id} to={['devis_valide','intervention_en_cours','intervention_terminee'].includes(p.stage) ? `/dossier/${p.id}` : `/contacts/${p.contact_id}`} draggable onDragStart={() => setDrag(p.id)} onDragEnd={() => { setDrag(null); setOver(null); }}
                         className={cn('block bg-white rounded-lg border border-line p-3 hover:border-stone-300 hover:shadow-sm cursor-grab active:cursor-grabbing transition', drag === p.id && 'opacity-40')}>
                         <div className="flex items-center gap-2"><Avatar name={p.contact_name} size={22} /><span className="font-medium truncate">{p.contact_company || p.contact_name}</span></div>
                         <div className="text-stone-600 mt-1.5 leading-snug line-clamp-2">{p.title}</div>

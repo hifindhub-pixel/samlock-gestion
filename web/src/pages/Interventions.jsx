@@ -41,7 +41,7 @@ export default function Interventions() {
               <h2 className="text-[12px] uppercase tracking-wide font-semibold text-stone-400 mb-3">{label} · {rows.length}</h2>
               <div className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
                 {rows.map((p) => (
-                  <Link key={p.id} to={`/interventions/${p.id}`} className="group bg-white border border-line rounded-2xl overflow-hidden hover:shadow-md hover:border-stone-300 transition">
+                  <Link key={p.id} to={`/dossier/${p.id}`} className="group bg-white border border-line rounded-2xl overflow-hidden hover:shadow-md hover:border-stone-300 transition">
                     <div className="h-32 bg-stone-100 relative">
                       {p.cover ? <img src={`/api/files/${p.cover}/raw`} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full grid place-items-center text-stone-300"><HardHat size={34} /></div>}
                       <div className="absolute top-2.5 left-2.5"><StageBadge stage={p.stage} /></div>

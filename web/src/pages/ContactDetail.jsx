@@ -100,7 +100,7 @@ export default function ContactDetail() {
 
           {['prospect', 'client', 'apporteur'].includes(c.kind) && (
             <Card>
-              <div className="px-5 py-3.5 border-b border-line flex items-center"><h2 className="font-semibold">Interventions et devis</h2></div>
+              <div className="px-5 py-3.5 border-b border-line flex items-center"><h2 className="font-semibold">Devis et factures</h2></div>
               {c.projects.length === 0 && <div className="p-8 text-center text-stone-400">Aucune intervention. Créez-en une pour établir un devis.</div>}
               {c.projects.map((p) => (
                 <div key={p.id} className="px-5 py-4 border-b border-line last:border-0">

@@ -58,7 +58,7 @@ export default function Billing({ d, id, reload, act }) {
     setBusy(true);
     try {
       const body = { lines, claim_ref: form.claim_ref, intervention_date: form.intervention_date || null };
-      if (form.id) await put(`/invoices/${form.id}`, body); else await post(`/interventions/${id}/direct-invoice`, body);
+      if (form.id) await put(`/invoices/${form.id}`, body); else await post(`/dossier/${id}/direct-invoice`, body);
       setForm(null); await reload(); toast('Facture enregistrée en brouillon');
     } catch (e) { toast(e.message, 'err'); } finally { setBusy(false); }
   };
@@ -69,11 +69,11 @@ export default function Billing({ d, id, reload, act }) {
   };
 
   return (
-    <div className="grid lg:grid-cols-5 gap-6">
-      <div className="lg:col-span-3 space-y-4">
+    <div className="max-w-[900px]">
+      <div className="space-y-4">
         <div className="flex items-center gap-2 flex-wrap"><h3 className="font-semibold">Factures</h3>
           <div className="ml-auto flex gap-2 flex-wrap">
-            {hasQuote && !hasFinal && <Btn size="sm" onClick={() => act(() => post(`/interventions/${id}/invoices`, { kind: 'facture' }), 'Facture créée depuis le devis')}>Facturer le devis</Btn>}
+            {hasQuote && !hasFinal && <Btn size="sm" onClick={() => act(() => post(`/dossier/${id}/invoices`, { kind: 'facture' }), 'Facture créée depuis le devis')}>Facturer le devis</Btn>}
             <Btn size="sm" variant="primary" icon={Plus} onClick={() => setForm({ lines: [blankLine()], claim_ref: '', intervention_date: today() })}>Facture directe</Btn>
           </div></div>
         {d.invoices.length === 0 ? <Card><Empty icon={Receipt} title="Aucune facture">Facturez le devis accepté, ou créez une facture directe pour un dépannage sans devis (lignes du catalogue ou libres).</Empty></Card> : d.invoices.map((i) => (
@@ -94,20 +94,6 @@ export default function Billing({ d, id, reload, act }) {
               {i.number && i.kind !== 'avoir' && i.status !== 'brouillon' && <Btn size="sm" variant="ghost" onClick={() => setCr({ id: i.id, number: i.number, reason: '', percent: 100 })}>Créer un avoir</Btn>}
             </div>
           </Card>))}
-      </div>
-
-      <div className="lg:col-span-2 space-y-4">
-        <h3 className="font-semibold">Bon d’intervention</h3>
-        <Card className="p-5">
-          {!P ? <>
-            <div className="flex gap-3"><ClipboardCheck className="text-stone-300 shrink-0" size={28} /><p className="text-stone-500 text-[13px]">Une fois l’intervention terminée, le client peut signer en ligne le bon d’intervention : preuve que la prestation est réalisée.</p></div>
-            <Btn variant="primary" className="w-full mt-4" icon={ClipboardCheck} onClick={() => setPvOpen(true)}>Préparer le bon d’intervention</Btn></> : <>
-            <div className="flex items-center gap-2"><Badge className={P.status === 'signe' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}>{{ brouillon: 'À valider', envoye: 'Envoyé — en attente de signature', signe: 'Signé' }[P.status] || P.status}</Badge></div>
-            <div className="text-[13px] mt-3 space-y-1"><div>Date d’intervention : <b>{dateFr(P.date_reception)}</b></div>{P.reserves && <div>Observations : {P.reserves}</div>}</div>
-            <div className="flex gap-2 mt-4"><a href={`/api/pv/${P.id}/pdf`} target="_blank" rel="noreferrer"><Btn size="sm" icon={FileDown}>PDF</Btn></a>
-              {P.status === 'envoye' && <Btn size="sm" onClick={() => act(() => post(`/pv/${P.id}/mark-signed`), 'Bon marqué signé')}>Signé sur papier</Btn>}
-              {P.status !== 'signe' && <Btn size="sm" variant="ghost" onClick={() => setPvOpen(true)}>Modifier</Btn>}</div></>}
-        </Card>
       </div>
 
       <Modal open={!!form} onClose={() => setForm(null)} width={760} title={form?.id ? 'Modifier la facture (brouillon)' : 'Facture directe'} footer={<><Btn onClick={() => setForm(null)}>Annuler</Btn><Btn variant="primary" loading={busy} onClick={saveForm}>Enregistrer le brouillon</Btn></>}>
@@ -144,7 +130,7 @@ export default function Billing({ d, id, reload, act }) {
           <div className="flex justify-end gap-2"><Btn onClick={() => setCr(null)}>Annuler</Btn><Btn variant="primary" onClick={() => act(async () => { await post(`/invoices/${cr.id}/credit`, { reason: cr.reason, percent: cr.percent }); setCr(null); }, 'Avoir créé en brouillon')}>Créer l’avoir</Btn></div>
         </div></Modal>}
 
-      <Modal open={pvOpen} onClose={() => setPvOpen(false)} title="Bon d’intervention" footer={<><Btn onClick={() => setPvOpen(false)}>Annuler</Btn><Btn variant="primary" onClick={async () => { try { await post(`/interventions/${id}/pv`, pv); setPvOpen(false); await reload(); toast('Bon d’intervention préparé — à valider dans la file d’envoi'); } catch (e) { toast(e.message, 'err'); } }}>Enregistrer</Btn></>}>
+      <Modal open={pvOpen} onClose={() => setPvOpen(false)} title="Bon d’intervention" footer={<><Btn onClick={() => setPvOpen(false)}>Annuler</Btn><Btn variant="primary" onClick={async () => { try { await post(`/dossier/${id}/pv`, pv); setPvOpen(false); await reload(); toast('Bon d’intervention préparé — à valider dans la file d’envoi'); } catch (e) { toast(e.message, 'err'); } }}>Enregistrer</Btn></>}>
         <div className="space-y-3"><Field label="Date d’intervention"><Input type="date" value={pv.date_reception} onChange={(e) => setPv({ ...pv, date_reception: e.target.value })} /></Field>
           <Field label="Observations éventuelles" hint="Laisser vide si tout est conforme."><Textarea rows={3} value={pv.reserves} onChange={(e) => setPv({ ...pv, reserves: e.target.value })} /></Field></div>
       </Modal>

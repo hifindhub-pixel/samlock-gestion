@@ -360,7 +360,7 @@ export default function QuoteEditor() {
                 <div className="absolute right-0 top-10 w-60 bg-white border border-line rounded-xl shadow-xl py-1 pop z-30" onMouseLeave={() => setMenu(false)}>
                   {[
                     { l: 'Dupliquer en brouillon', i: Copy, f: duplicate },
-                    q.status === 'signe' && { l: 'Ouvrir l’intervention', i: CheckCircle2, f: () => nav(`/interventions/${q.project_id}`) },
+                    q.status === 'signe' && { l: 'Facturer / ouvrir le dossier', i: CheckCircle2, f: () => nav(`/dossier/${q.project_id}`) },
                     q.kind === 'devis' && q.status === 'signe' && { l: 'Créer un avenant', i: GitBranch, f: avenant },
                     q.status !== 'brouillon' && q.status !== 'signe' && { l: 'Marquer comme signé', i: CheckCircle2, f: () => setStatus('signe') },
                     q.status === 'brouillon' && q.number && { l: 'Marquer comme envoyé', i: Send, f: () => setStatus('envoye') },

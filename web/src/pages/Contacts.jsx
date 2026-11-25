@@ -15,7 +15,7 @@ export default function Contacts() {
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   return (
     <div>
-      <PageHeader title="Contacts" subtitle="Une seule fiche par personne : coordonnées, interventions, devis et historique."
+      <PageHeader title="Contacts" subtitle="Une seule fiche par personne : coordonnées, devis, factures et historique."
         actions={<Btn variant="primary" icon={Plus} onClick={() => setParams({ new: 1 })}>Nouveau contact</Btn>} />
       <div className="px-8 pb-10">
         <div className="flex items-center gap-3 mb-4 flex-wrap">

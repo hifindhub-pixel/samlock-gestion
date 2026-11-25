@@ -100,7 +100,7 @@ function Interventions({ margin }) {
         {data.untracked > 0 && data.tracked > 0 ? ` ${data.untracked} intervention${data.untracked > 1 ? 's' : ''} en cours sans dépense saisie.` : ''}
       </div>
       <div className="divide-y divide-line">{rows.slice(0, 6).map((r) => (
-        <Link key={r.id} to={`/interventions/${r.id}`} className="flex items-center gap-3 py-2 text-[13.5px] hover:bg-stone-50 -mx-2 px-2 rounded-lg">
+        <Link key={r.id} to={`/dossier/${r.id}`} className="flex items-center gap-3 py-2 text-[13.5px] hover:bg-stone-50 -mx-2 px-2 rounded-lg">
           <div className="min-w-0 flex-1"><div className="font-medium truncate">{r.who} <span className="text-stone-400 font-normal">· {r.title}</span></div>
             <div className="text-[12px] text-stone-500 num">Vendu {money0(r.sold_ht)} · dépensé {money0(r.spent_ht)}{r.planned_cost > 0 && <> · budget {money0(r.planned_cost)}</>}</div></div>
           {r.over > 0 && <span className="text-[12px] font-semibold text-rose-700 bg-rose-50 rounded-md px-2 py-0.5">+{money0(r.over)} au-dessus du budget</span>}
@@ -150,48 +150,17 @@ export default function Dashboard() {
         <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           <Kpi icon={ShieldCheck} tone={todo ? 'orange' : 'stone'} label="À valider" value={todo} sub={todo ? 'messages et prix en attente' : 'Tout est à jour'} to="/validations" />
           <Kpi icon={FileText} label="Devis en attente de réponse" value={money0(open)} sub={`${d.byStage.devis_envoye.count} envoyé${d.byStage.devis_envoye.count > 1 ? 's' : ''} · ${d.byStage.visite_technique.count} en préparation`} to="/devis" />
-          <Kpi icon={Hammer} tone="emerald" label="Interventions acceptées" value={money0(signed)} sub={`${d.byStage.devis_valide.count + d.byStage.intervention_en_cours.count} intervention(s) à réaliser`} to="/interventions" />
+          <Kpi icon={Hammer} tone="emerald" label="Devis acceptés" value={money0(signed)} sub={`${d.byStage.devis_valide.count + d.byStage.intervention_en_cours.count + d.byStage.intervention_terminee.count} devis signé(s)`} to="/devis" />
           <Kpi icon={Receipt} tone={d.overdue ? 'orange' : 'stone'} label="À encaisser (TTC)" value={money0(d.receivable)} sub={d.overdue ? `dont ${money0(d.overdue)} en retard` : d.draftInvoices ? `${d.draftInvoices} facture(s) à envoyer` : 'Aucun retard'} to="/factures" />
           <Kpi icon={TrendingUp} tone="emerald" label="Marge moyenne des devis émis" value={pct(d.avg_margin)} sub={`Seuil d'alerte ${d.settings.margin_alert} %`} />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Kpi icon={Car} tone="orange" label={`Indemnités km ${new Date().getFullYear()}`} value={d.ik ? money0(d.ik.ik) : '—'} sub={d.ik ? `${Math.round(d.ik.km)} km · ${d.ik.count} intervention${d.ik.count > 1 ? 's' : ''}` : 'Calcul désactivé'} to="/indemnites-km" />
           <Kpi icon={Boxes} tone={d.stock.out ? 'rose' : d.stock.low ? 'orange' : 'stone'} label="Stock" value={d.stock.out + d.stock.low} sub={d.stock.out + d.stock.low ? `${d.stock.out} rupture${d.stock.out > 1 ? 's' : ''} · ${d.stock.low} bas` : 'Aucune alerte'} to="/stock" />
-          <Kpi icon={Wrench} tone={d.subsToPay.n ? 'orange' : 'stone'} label="Sous-traitants à régler" value={money0(d.subsToPay.t)} sub={d.subsToPay.n ? `${d.subsToPay.n} mission${d.subsToPay.n > 1 ? 's' : ''} terminée${d.subsToPay.n > 1 ? 's' : ''} (HT)` : 'Rien à régler'} to="/sous-traitants" />
         </div>
         <div className="grid lg:grid-cols-2 gap-6"><Today /><Cash /></div>
         <Reminders />
-        <Interventions margin={Number(d.settings.margin_alert || 20)} />
-
-        <div className="grid lg:grid-cols-3 gap-6">
-          <Card className="lg:col-span-2 p-5">
-            <div className="flex items-center justify-between mb-4"><h2 className="font-semibold">Pipeline</h2></div>
-            <div className="space-y-2.5">
-              {STAGES.map((s) => (
-                <div key={s} className="flex items-center gap-3">
-                  <div className="w-36 flex items-center gap-2 text-[13px]"><i className={cn('w-2 h-2 rounded-full', STAGE[s].dot)} />{STAGE[s].label}</div>
-                  <div className="flex-1 h-6 bg-stone-100 rounded-md overflow-hidden"><div className={cn('h-full rounded-md opacity-80', STAGE[s].dot)} style={{ width: `${Math.max(d.byStage[s].count ? 4 : 0, (d.byStage[s].amount / maxAmt) * 100)}%` }} /></div>
-                  <div className="w-8 text-right num text-stone-500">{d.byStage[s].count}</div>
-                  <div className="w-24 text-right num font-medium">{money0(d.byStage[s].amount)}</div>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          <Card className="p-5">
-            <h2 className="font-semibold mb-3">Alertes sous-traitants</h2>
-            {alerts.length === 0 && <div className="text-stone-400 py-6 text-center">Toutes les attestations sont valides.</div>}
-            <div className="space-y-2.5">
-              {alerts.slice(0, 5).map((a, i) => (
-                <Link key={i} to={`/contacts/${a.s.id}`} className="flex items-start gap-2.5 group">
-                  <AlertTriangle size={15} className={cn('mt-0.5', a.n < 0 ? 'text-rose-600' : 'text-amber-600')} />
-                  <div className="leading-snug"><div className="font-medium group-hover:text-accent">{a.s.name}</div><div className="text-[12.5px] text-stone-500">{a.l} {a.n < 0 ? `expirée depuis ${-a.n} j — non affectable` : `expire dans ${a.n} j`}</div></div>
-                </Link>
-              ))}
-            </div>
-          </Card>
-        </div>
 
         <Card className="p-5">
           <h2 className="font-semibold mb-3">Activité récente</h2>

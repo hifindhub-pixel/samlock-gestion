@@ -77,7 +77,7 @@ function Margins({ alertPct }) {
             <thead><tr className="text-left text-[11.5px] text-stone-400 border-b border-line">{sort.th('who', 'Intervention', { className: 'px-4 py-2.5' })}{sort.th('sold', 'Vendu', { right: true, className: 'text-right' })}{sort.th('cost', 'Coût prév.', { right: true, className: 'text-right' })}{sort.th('pm', 'Marge prév.', { right: true, className: 'text-right' })}{sort.th('spent', 'Dépensé', { right: true, className: 'text-right' })}{sort.th('rm', 'Marge réelle', { right: true, className: 'text-right pr-4' })}</tr></thead>
             <tbody>{sort.rows.map((r) => (
               <tr key={r.id} className="border-b border-line/70 hover:bg-stone-50">
-                <td className="px-4 py-2.5"><Link to={`/interventions/${r.id}`} className="font-medium hover:text-accent">{r.who}</Link><div className="text-[12px] text-stone-400 truncate max-w-[210px]">{r.title} · facturé {pct(r.billed_pct, 0)}</div></td>
+                <td className="px-4 py-2.5"><Link to={`/dossier/${r.id}`} className="font-medium hover:text-accent">{r.who}</Link><div className="text-[12px] text-stone-400 truncate max-w-[210px]">{r.title} · facturé {pct(r.billed_pct, 0)}</div></td>
                 <td className="text-right num">{money0(r.sold_ht)}</td>
                 <td className="text-right num text-stone-500">{r.planned_cost ? money0(r.planned_cost) : '—'}</td>
                 <td className="text-right"><MarginPill value={r.planned_margin_pct} /></td>

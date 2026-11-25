@@ -164,7 +164,7 @@ export default function Agenda() {
         <div className="text-[12px] text-stone-500 flex items-center gap-2 flex-wrap mt-0.5">
           {whenLabel(t, today) && <span className={cn(!t.done && taskDay(t) < today && 'text-rose-600 font-medium')}>{whenLabel(t, today)}</span>}
           {t.remind_at && !t.done && <span className="inline-flex items-center gap-1 text-stone-400"><Bell size={11} />rappel</span>}
-          {t.project_id ? <Link to={`/interventions/${t.project_id}`} className="hover:text-accent">{t.project_title}</Link> : t.contact_name ? <span>{t.contact_company || t.contact_name}</span> : null}
+          {t.project_id ? <Link to={`/dossier/${t.project_id}`} className="hover:text-accent">{t.project_title}</Link> : t.contact_name ? <span>{t.contact_company || t.contact_name}</span> : null}
         </div>
         {t.notes && <div className="text-[12px] text-stone-400 mt-0.5 line-clamp-2">{t.notes}</div>}
       </div>

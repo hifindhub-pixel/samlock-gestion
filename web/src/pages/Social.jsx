@@ -18,7 +18,7 @@ function Post({ p, reload }) {
         <div className="bg-stone-100 grid grid-cols-2 gap-px content-start">{p.file_ids.slice(0, 4).map((id, k) => <img key={id} src={`/api/files/${id}/raw`} alt="" className={cn('w-full aspect-square object-cover', p.file_ids.length === 1 && 'col-span-2')} />)}</div>
         <div className="p-4 flex flex-col gap-3">
           <div className="flex items-center gap-2"><Icon size={16} className="text-stone-500" /><span className="font-medium">{p.network_label}</span><Badge className={ST[p.status][1]}>{ST[p.status][0]}</Badge>
-            <Link to={`/interventions/${p.project_id}`} className="ml-auto text-[12.5px] text-stone-500 hover:text-accent truncate">{p.project_title}</Link></div>
+            <Link to={`/dossier/${p.project_id}`} className="ml-auto text-[12.5px] text-stone-500 hover:text-accent truncate">{p.project_title}</Link></div>
           <Textarea rows={7} value={text} disabled={locked} onChange={(e) => setText(e.target.value)} className="text-[13.5px]" />
           <div className="flex flex-wrap gap-2 items-center">
             {dirty && !locked && <Btn size="sm" variant="primary" onClick={() => act(() => put(`/social/${p.id}`, { text }), 'Texte enregistré')}>Enregistrer</Btn>}
@@ -41,7 +41,7 @@ export default function Social() {
   const toast = useToast();
   if (!data || !ch) return null;
   const eligible = ch.filter((c) => c.photos > 0);
-  const create = async (id, network, kind) => { try { await post(`/interventions/${id}/social/draft`, { network, kind }); await reload(); toast('Brouillon créé'); } catch (e) { toast(e.message, 'err'); } };
+  const create = async (id, network, kind) => { try { await post(`/dossier/${id}/social/draft`, { network, kind }); await reload(); toast('Brouillon créé'); } catch (e) { toast(e.message, 'err'); } };
   return (
     <div>
       <PageHeader title="Réseaux sociaux" subtitle="Des brouillons prêts à publier, créés depuis les photos d’intervention autorisées par le client." />

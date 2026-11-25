@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
-import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { LayoutDashboard, Kanban, Users, FileText, Package, ShieldCheck, HardHat, CalendarDays, Receipt, Landmark, CalendarCheck, Share2, Settings as Cog, Search, Plus, Command, LogOut, Menu, ArrowLeft, FileDown, Sparkles, Boxes, Car, Wrench } from 'lucide-react';
 import { ConfirmHost, ToastProvider, cn, Avatar, BrandMark } from './lib/ui.jsx';
 import { get, post } from './lib/api.js';
@@ -31,18 +31,17 @@ const SousTraitants = lazy(() => import('./pages/SousTraitants.jsx'));
 
 const NAV = [
   { to: '/', label: 'Accueil', icon: LayoutDashboard, end: true },
-  { to: '/interventions', label: 'Interventions', icon: HardHat },
-  { to: '/planning', label: 'Planning', icon: CalendarDays },
   { to: '/devis', label: 'Devis', icon: FileText },
   { to: '/factures', label: 'Factures', icon: Receipt },
   { to: '/stock', label: 'Stock', icon: Boxes },
-  { to: '/sous-traitants', label: 'Sous-traitants', icon: Wrench },
   { to: '/indemnites-km', label: 'Indemnités km', icon: Car },
   { to: '/comptabilite', label: 'Comptabilité', icon: Landmark },
   { to: '/contacts', label: 'Contacts', icon: Users },
   { to: '/catalogue', label: 'Catalogue', icon: Package },
   { to: '/validations', label: 'Validations', icon: ShieldCheck, badge: true },
 ];
+
+function RedirectDossier() { const { id } = useParams(); return <Navigate to={`/dossier/${id}`} replace />; }
 
 function Sidebar({ pending, auth, open, setOpen }) {
   const loc = useLocation();
@@ -108,7 +107,7 @@ function useResponsiveTables() {
 
 function MobileNav({ pending, setNavOpen }) {
   const loc = useLocation();
-  const main = ['/', '/interventions', '/devis', '/planning'];
+  const main = ['/', '/devis', '/factures', '/stock'];
   const items = NAV.filter((n) => main.includes(n.to));
   const cls = (a) => cn('relative flex flex-col items-center justify-center gap-0.5 pt-2 pb-1.5 text-[10.5px] font-medium', a ? 'text-accent' : 'text-stone-500');
   const inMain = main.some((m) => (m === '/' ? loc.pathname === '/' : loc.pathname.startsWith(m)));
@@ -238,14 +237,15 @@ function Shell({ auth }) {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/pipeline" element={<Navigate to="/" replace />} />
-          <Route path="/interventions" element={<Interventions />} />
-          <Route path="/interventions/:id" element={<InterventionDetail />} />
+          <Route path="/interventions" element={<Navigate to="/devis" replace />} />
+          <Route path="/dossier/:id" element={<InterventionDetail />} />
+          <Route path="/interventions/:id" element={<RedirectDossier />} />
           <Route path="/agenda" element={<Navigate to="/" replace />} />
-          <Route path="/planning" element={<Planning />} />
+          <Route path="/planning" element={<Navigate to="/devis" replace />} />
           <Route path="/reseaux" element={<Navigate to="/" replace />} />
           <Route path="/factures" element={<Invoices />} />
           <Route path="/stock" element={<Stock />} />
-          <Route path="/sous-traitants" element={<SousTraitants />} />
+          <Route path="/sous-traitants" element={<Navigate to="/devis" replace />} />
           <Route path="/indemnites-km" element={<Ik />} />
           <Route path="/comptabilite" element={<Compta />} />
           <Route path="/contacts" element={<Contacts />} />

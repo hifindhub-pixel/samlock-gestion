@@ -9,7 +9,7 @@ const blank = () => ({ kind: 'fourniture', supplier: '', label: '', invoice_ref:
 
 export default function Expenses({ d, id, reload }) {
   const toast = useToast();
-  const { data, reload: reloadX } = useFetch(() => get(`/interventions/${id}/expenses`), [id]);
+  const { data, reload: reloadX } = useFetch(() => get(`/dossier/${id}/expenses`), [id]);
   const [f, setF] = useState(null); const [busy, setBusy] = useState(false);
   const pl = d.planned;
   if (!data) return null;
@@ -19,7 +19,7 @@ export default function Expenses({ d, id, reload }) {
     try {
       const fd = new FormData(); for (const [k, v] of Object.entries(f)) if (k !== 'file' && k !== 'id' && v != null) fd.append(k, v);
       if (f.file) fd.append('file', f.file);
-      await api(f.id ? `/expenses/${f.id}` : `/interventions/${id}/expenses`, { method: f.id ? 'PUT' : 'POST', form: fd });
+      await api(f.id ? `/expenses/${f.id}` : `/dossier/${id}/expenses`, { method: f.id ? 'PUT' : 'POST', form: fd });
       setF(null); await reloadX(); await reload(); toast('Dépense enregistrée');
     } catch (e) { toast(e.message, 'err'); } finally { setBusy(false); }
   };

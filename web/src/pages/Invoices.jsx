@@ -33,8 +33,8 @@ function NewInvoice({ onClose }) {
     try {
       const contact = ex || await post('/contacts', { ...c, kind: 'client' });
       const p = await post('/projects', { contact_id: contact.id, title: ls[0].label.slice(0, 80), address: site.address || contact.address || '', city: site.city || contact.city || '', stage: 'intervention_terminee' });
-      const inv = await post(`/interventions/${p.id}/direct-invoice`, { lines: ls, claim_ref: claim, intervention_date: date || null });
-      toast('Facture créée en brouillon'); onClose(); nav(`/interventions/${p.id}?tab=fact`);
+      const inv = await post(`/dossier/${p.id}/direct-invoice`, { lines: ls, claim_ref: claim, intervention_date: date || null });
+      toast('Facture créée en brouillon'); onClose(); nav(`/dossier/${p.id}?tab=fact`);
       return inv;
     } catch (e) { toast(e.message, 'err'); } finally { setBusy(false); }
   };
@@ -91,11 +91,11 @@ export default function Invoices() {
         <Card className="overflow-hidden">
           {data.length === 0 ? <Empty icon={Receipt} title="Aucune facture">Elles se créent à la signature d'un devis (acompte) et à la réception de l’intervention (solde).</Empty> : sort.rows.length === 0 ? <Empty icon={Receipt} title="Aucun résultat">Modifiez la recherche ou le filtre.</Empty> : (
             <table className="w-full text-[13.5px]">
-              <thead><tr className="text-left text-[11.5px] text-stone-400 border-b border-line">{sort.th('number', 'N°', { className: 'px-4 py-2.5' })}{sort.th('project', 'Intervention')}{sort.th('kind', 'Type')}{sort.th('due', 'Échéance')}{sort.th('ttc', 'TTC', { right: true, className: 'text-right' })}{sort.th('status', 'Statut')}<th /></tr></thead>
+              <thead><tr className="text-left text-[11.5px] text-stone-400 border-b border-line">{sort.th('number', 'N°', { className: 'px-4 py-2.5' })}{sort.th('project', 'Client / dossier')}{sort.th('kind', 'Type')}{sort.th('due', 'Échéance')}{sort.th('ttc', 'TTC', { right: true, className: 'text-right' })}{sort.th('status', 'Statut')}<th /></tr></thead>
               <tbody>{sort.rows.map((i) => (
                 <tr key={i.id} className="border-b border-line last:border-0 hover:bg-stone-50">
                   <td className="px-4 py-2.5 font-medium num">{i.number || <span className="text-stone-400">brouillon</span>}</td>
-                  <td><Link className="hover:text-accent" to={`/interventions/${i.project_id}`}>{i.project_title}</Link><div className="text-[12px] text-stone-400">{i.contact_company || i.contact_name}</div>{i.quotes?.length > 0 && <div className="text-[12px] text-stone-400">Devis {i.quotes.map((r) => r.number).join(', ')}</div>}</td>
+                  <td><Link className="hover:text-accent" to={`/dossier/${i.project_id}`}>{i.project_title}</Link><div className="text-[12px] text-stone-400">{i.contact_company || i.contact_name}</div>{i.quotes?.length > 0 && <div className="text-[12px] text-stone-400">Devis {i.quotes.map((r) => r.number).join(', ')}</div>}</td>
                   <td>{KIND_INV[i.kind]}</td><td className={i.late ? 'text-rose-600 font-medium' : ''}>{dateFr(i.due_at)}</td>
                   <td className="text-right num font-medium">{money(i.total_ttc)}</td><td><InvBadge i={i} /></td>
                   <td className="pr-4"><a href={`/api/invoices/${i.id}/pdf`} target="_blank" rel="noreferrer" className="text-stone-400 hover:text-accent"><FileDown size={16} /></a>{!String(i.number || '').startsWith('TIIME-') && i.kind !== 'avoir' && <button title="Supprimer" className="ml-3 text-stone-300 hover:text-rose-600" onClick={() => remove(i)}><Trash2 size={15} /></button>}</td>

@@ -42,7 +42,7 @@ export default function TeamPortal() {
   const T = d.totals;
 
   const presentAndSign = async (q) => { const r = await run(() => post(`/public/team/${token}/quotes/${q.id}/present`)); if (r) { if (!r.has_email) toast("Ajoutez l'e-mail du client pour recevoir le code de signature.", 'err'); window.open(`/signer/quote/${r.sign_token}`, '_blank'); } };
-  const pv = async (m) => { const r = await run(() => post(`/public/team/${token}/interventions/${m.id}/pv`, {})); if (r) window.open(`/signer/pv/${r.sign_token}`, '_blank'); };
+  const pv = async (m) => { const r = await run(() => post(`/public/team/${token}/dossier/${m.id}/pv`, {})); if (r) window.open(`/signer/pv/${r.sign_token}`, '_blank'); };
 
   return (
     <div className="min-h-full bg-surface pb-16">
@@ -102,10 +102,10 @@ export default function TeamPortal() {
           </div>)}
       </div>
 
-      <Modal open={!!addQuote} onClose={() => setAddQuote(null)} title={`Devis — ${addQuote?.title || ''}`} footer={<><Btn onClick={() => setAddQuote(null)}>Annuler</Btn><Btn variant="primary" loading={busy} onClick={async () => { const r = await run(() => post(`/public/team/${token}/interventions/${addQuote.id}/quote`, { lines: qLines }), 'Devis créé'); if (r) setAddQuote(null); }}>Créer le devis</Btn></>}>
+      <Modal open={!!addQuote} onClose={() => setAddQuote(null)} title={`Devis — ${addQuote?.title || ''}`} footer={<><Btn onClick={() => setAddQuote(null)}>Annuler</Btn><Btn variant="primary" loading={busy} onClick={async () => { const r = await run(() => post(`/public/team/${token}/dossier/${addQuote.id}/quote`, { lines: qLines }), 'Devis créé'); if (r) setAddQuote(null); }}>Créer le devis</Btn></>}>
         <LinesPicker catalog={catalog} lines={qLines} setLines={setQLines} />
       </Modal>
-      <Modal open={!!direct} onClose={() => setDirect(null)} title={`Facturer — ${direct?.title || ''}`} footer={<><Btn onClick={() => setDirect(null)}>Annuler</Btn><Btn variant="primary" loading={busy} onClick={async () => { const r = await run(() => post(`/public/team/${token}/interventions/${direct.id}/direct-invoice`, { lines: qLines }), 'Facture préparée : SAMLOCK la valide et l’envoie'); if (r) setDirect(null); }}>Préparer la facture</Btn></>}>
+      <Modal open={!!direct} onClose={() => setDirect(null)} title={`Facturer — ${direct?.title || ''}`} footer={<><Btn onClick={() => setDirect(null)}>Annuler</Btn><Btn variant="primary" loading={busy} onClick={async () => { const r = await run(() => post(`/public/team/${token}/dossier/${direct.id}/direct-invoice`, { lines: qLines }), 'Facture préparée : SAMLOCK la valide et l’envoie'); if (r) setDirect(null); }}>Préparer la facture</Btn></>}>
         <p className="text-[12.5px] text-stone-500 mb-2">Dépannage réglé sur place : la facture est préparée, SAMLOCK la valide avant envoi.</p>
         <LinesPicker catalog={catalog} lines={qLines} setLines={setQLines} />
       </Modal>
