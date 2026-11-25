@@ -1,6 +1,6 @@
 // Service worker : coquille de l'appli en cache + lecture hors ligne des données déjà consultées.
 // Les écritures ne sont jamais mises en file : hors ligne, l'appli le dit clairement.
-const SHELL = 'samlock-shell-v2';
+const SHELL = 'samlock-shell-v3';
 const DATA = 'samlock-data-v1';
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => {
@@ -8,7 +8,7 @@ self.addEventListener('activate', (e) => {
 });
 self.addEventListener('message', (e) => { if (e.data === 'clear-data') caches.delete(DATA); });
 
-const NO_CACHE_API = /^\/api\/(auth|public|push|inbox\/sync)/;
+const NO_CACHE_API = /^\/api\/(auth|public|push|inbox\/sync)|\.(xlsx|pdf|csv|zip)$/;
 const timeout = (ms) => new Promise((_, r) => setTimeout(() => r(new Error('timeout')), ms));
 
 self.addEventListener('fetch', (e) => {
